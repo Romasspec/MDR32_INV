@@ -6,8 +6,8 @@ void CNTL_3P3Z (volatile float* Out, volatile float* Ref, volatile float* Fdbk, 
 	static float En[3] = {0,0,0};
 	static float Un[3] = {0,0,0};
 	float acc;
-	uint8_t i;
-	// ACC =  e(n-3)B3 + e(n-2)*B2 + e(n-1)*B1 + e(n)*B0 + u(n-3)*A3 + u(n-2)*A2 + u(n-1)*A1
+//	uint8_t i;
+// 	ACC =  e(n-3)B3 + e(n-2)*B2 + e(n-1)*B1 + e(n)*B0 + u(n-3)*A3 + u(n-2)*A2 + u(n-1)*A1
 //	En[0] = *Ref - *Fdbk;	
 //	Un[0] = Coef->b0 * En[0];
 //	Un[0] += (Coef->b1 * En[1]) + (Coef->a1 * Un[1]);

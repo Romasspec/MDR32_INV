@@ -8,6 +8,8 @@
 #include "PID.h"
 #include "string.h"
 #include <math.h>
+#include "sogi.h"
+#include "pll.h"
 #define OPEN_LOOP 1
 
 //CNTL_3P3Z_CoefStruct1.b3 = _IQ26(-0.0002191);
@@ -65,7 +67,7 @@
 //#define K (1)
 
 #define STEP_SINUS		400
-#define PI 				3.141592653589
+//#define PI 				3.141592653589
 
 
 void RST_clk_Init (void);
@@ -106,6 +108,9 @@ float Kdc;
 CNTL_3P3Z_CoefStruct	CNTL_3P3Z_CoefStruct1;
 CNTL_PID_CoefStruct 	CNTL_PID_CoefStruct1;
 
+SOGI_t sogi;
+PLL_t pll;
+
 int main (void)
 {
 //	CAN_RxMsgTypeDef RxMsg;
@@ -113,7 +118,7 @@ int main (void)
 //	j1939msg_t CANmsg;
 //	uint32_t cnt_shag;
 //	uint8_t	faza_shag, timer_1ms[2], flags;
-	
+		
 	uint16_t i;
 	
 	RST_clk_Init();
@@ -160,7 +165,10 @@ int main (void)
 	CNTL_3P3Z_CoefStruct1.min = -0.8;
 	
 	Uout_ref = 0.2;	
-	Vref_165 = 2000;
+	Vref_165 = 2047;
+	
+	SOGI_Init(&sogi);
+	PLL_Init(&pll);
 	
 	task_m = &task_m1;
 //	set_Fnom ();
@@ -394,8 +402,7 @@ void myPort_Init ()
 }
 
 void CAN2_Init ()
-{
-	
+{	
 	CAN_InitTypeDef CAN_InitStructure;
 	CAN_FilterInitTypeDef CAN_FilterInitStructure;
 	
@@ -405,17 +412,17 @@ void CAN2_Init ()
 	
 	CAN_StructInit (&CAN_InitStructure);
 	
-	CAN_InitStructure.CAN_ROP				= DISABLE;
-	CAN_InitStructure.CAN_SAP				= DISABLE;
-	CAN_InitStructure.CAN_STM			= DISABLE;
-	CAN_InitStructure.CAN_ROM				= DISABLE;
-	CAN_InitStructure.CAN_OVER_ERROR_MAX = 255;
-	CAN_InitStructure.CAN_SB			= CAN_SB_1_SAMPLE;
-	CAN_InitStructure.CAN_PSEG		= CAN_PSEG_Mul_7TQ;
-	CAN_InitStructure.CAN_SEG1		= CAN_SEG1_Mul_5TQ;
-	CAN_InitStructure.CAN_SEG2		= CAN_SEG2_Mul_3TQ;
-	CAN_InitStructure.CAN_SJW			= CAN_SJW_Mul_1TQ;
-	CAN_InitStructure.CAN_BRP			= 19;
+	CAN_InitStructure.CAN_ROP							= DISABLE;
+	CAN_InitStructure.CAN_SAP							= DISABLE;
+	CAN_InitStructure.CAN_STM							= DISABLE;
+	CAN_InitStructure.CAN_ROM							= DISABLE;
+	CAN_InitStructure.CAN_OVER_ERROR_MAX	= 255;
+	CAN_InitStructure.CAN_SB							= CAN_SB_1_SAMPLE;
+	CAN_InitStructure.CAN_PSEG						= CAN_PSEG_Mul_7TQ;
+	CAN_InitStructure.CAN_SEG1						= CAN_SEG1_Mul_5TQ;
+	CAN_InitStructure.CAN_SEG2						= CAN_SEG2_Mul_3TQ;
+	CAN_InitStructure.CAN_SJW							= CAN_SJW_Mul_1TQ;
+	CAN_InitStructure.CAN_BRP							= 19;
 	CAN_Init (MDR_CAN2, &CAN_InitStructure);
 	
 	CAN_Cmd (MDR_CAN2, ENABLE);
@@ -436,10 +443,10 @@ void myTimer1_Init ()
 	TIMER_CntStructInit (&sTim_CntInit);
 	TIMER_DeInit (MDR_TIMER1);
 	sTim_CntInit.TIMER_IniCounter 					= 0;
-	sTim_CntInit.TIMER_Prescaler					= 0;
-	sTim_CntInit.TIMER_Period						= 4000;
+	sTim_CntInit.TIMER_Prescaler						= 0;
+	sTim_CntInit.TIMER_Period								= 4000;
 	sTim_CntInit.TIMER_CounterMode					= TIMER_CntMode_ClkFixedDir;
-	sTim_CntInit.TIMER_CounterDirection				= TIMER_CntDir_Up;
+	sTim_CntInit.TIMER_CounterDirection			= TIMER_CntDir_Up;
 	sTim_CntInit.TIMER_EventSource					= TIMER_EvSrc_None;
 	sTim_CntInit.TIMER_FilterSampling				= TIMER_FDTS_TIMER_CLK_div_1;
 	sTim_CntInit.TIMER_ARR_UpdateMode				= TIMER_ARR_Update_On_CNT_Overflow;
@@ -458,10 +465,10 @@ void myTimer2_Init ()
 	TIMER_CntStructInit (&sTim_CntInit);
 	TIMER_DeInit (MDR_TIMER2);
 	sTim_CntInit.TIMER_IniCounter 					= 0;
-	sTim_CntInit.TIMER_Prescaler					= 0;
-	sTim_CntInit.TIMER_Period						= 8000;
+	sTim_CntInit.TIMER_Prescaler						= 0;
+	sTim_CntInit.TIMER_Period								= 8000;
 	sTim_CntInit.TIMER_CounterMode					= TIMER_CntMode_ClkFixedDir;
-	sTim_CntInit.TIMER_CounterDirection				= TIMER_CntDir_Up;
+	sTim_CntInit.TIMER_CounterDirection			= TIMER_CntDir_Up;
 	sTim_CntInit.TIMER_EventSource					= TIMER_EvSrc_None;
 	sTim_CntInit.TIMER_FilterSampling				= TIMER_FDTS_TIMER_CLK_div_1;
 	sTim_CntInit.TIMER_ARR_UpdateMode				= TIMER_ARR_Update_On_CNT_Overflow;
@@ -476,15 +483,15 @@ void myTimer3_Init ()
 {
 	TIMER_CntInitTypeDef 			sTim_CntInit;
 	TIMER_ChnInitTypeDef			sTim_ChnInit;
-	TIMER_ChnOutInitTypeDef			sTim_ChnOutInit;
+	TIMER_ChnOutInitTypeDef		sTim_ChnOutInit;
 	
 	TIMER_CntStructInit (&sTim_CntInit);
 	TIMER_DeInit (MDR_TIMER3);
 	sTim_CntInit.TIMER_IniCounter 							= 0;
-	sTim_CntInit.TIMER_Prescaler							= 0;
-	sTim_CntInit.TIMER_Period								= 4000;
+	sTim_CntInit.TIMER_Prescaler								= 0;
+	sTim_CntInit.TIMER_Period										= 4000;
 	sTim_CntInit.TIMER_CounterMode							= TIMER_CntMode_ClkFixedDir;
-	sTim_CntInit.TIMER_CounterDirection						= TIMER_CntDir_Up;
+	sTim_CntInit.TIMER_CounterDirection					= TIMER_CntDir_Up;
 	sTim_CntInit.TIMER_EventSource							= TIMER_EvSrc_None;
 	sTim_CntInit.TIMER_FilterSampling						= TIMER_FDTS_TIMER_CLK_div_1;
 //	sTim_CntInit.TIMER_ARR_UpdateMode						= TIMER_ARR_Update_On_CNT_Overflow;
@@ -493,38 +500,38 @@ void myTimer3_Init ()
 	
 	
 	TIMER_ChnStructInit (&sTim_ChnInit);
-	sTim_ChnInit.TIMER_CH_Number 							= TIMER_CHANNEL1;
-	sTim_ChnInit.TIMER_CH_Mode								= TIMER_CH_MODE_PWM;
-	sTim_ChnInit.TIMER_CH_ETR_Ena							= DISABLE;
+	sTim_ChnInit.TIMER_CH_Number 								= TIMER_CHANNEL1;
+	sTim_ChnInit.TIMER_CH_Mode									= TIMER_CH_MODE_PWM;
+	sTim_ChnInit.TIMER_CH_ETR_Ena								= DISABLE;
 	sTim_ChnInit.TIMER_CH_ETR_Reset							= TIMER_CH_ETR_RESET_Disable;
 	sTim_ChnInit.TIMER_CH_BRK_Reset							= TIMER_CH_BRK_RESET_Disable;
 	sTim_ChnInit.TIMER_CH_REF_Format						= TIMER_CH_REF_Format6;
 	sTim_ChnInit.TIMER_CH_Prescaler							= TIMER_CH_Prescaler_None;
 	sTim_ChnInit.TIMER_CH_EventSource						= TIMER_CH_EvSrc_PE;
 	sTim_ChnInit.TIMER_CH_FilterConf						= TIMER_Filter_1FF_at_TIMER_CLK;
-	sTim_ChnInit.TIMER_CH_CCR_UpdateMode					= TIMER_CH_CCR_Update_On_CNT_eq_0;
+	sTim_ChnInit.TIMER_CH_CCR_UpdateMode				= TIMER_CH_CCR_Update_On_CNT_eq_0;
 	sTim_ChnInit.TIMER_CH_CCR1_Ena							= DISABLE;
-	sTim_ChnInit.TIMER_CH_CCR1_EventSource					= TIMER_CH_CCR1EvSrc_PE;
+	sTim_ChnInit.TIMER_CH_CCR1_EventSource			= TIMER_CH_CCR1EvSrc_PE;
 	TIMER_ChnInit (MDR_TIMER3, &sTim_ChnInit);
 	
 	
 	TIMER_ChnOutStructInit (&sTim_ChnOutInit);
 	sTim_ChnOutInit.TIMER_CH_Number							= TIMER_CHANNEL1;
-	sTim_ChnOutInit.TIMER_CH_DirOut_Polarity				= TIMER_CHOPolarity_NonInverted;
-	//sTim_ChnOutInit.TIMER_CH_DirOut_Source					= TIMER_CH_OutSrc_DTG;
-	sTim_ChnOutInit.TIMER_CH_DirOut_Source					= TIMER_CH_OutSrc_REF;
-	sTim_ChnOutInit.TIMER_CH_DirOut_Mode					= TIMER_CH_OutMode_Output;
-	sTim_ChnOutInit.TIMER_CH_NegOut_Polarity				= TIMER_CHOPolarity_NonInverted;
-	//sTim_ChnOutInit.TIMER_CH_NegOut_Source					= TIMER_CH_OutSrc_DTG;
-	sTim_ChnOutInit.TIMER_CH_NegOut_Source					= TIMER_CH_OutSrc_REF;
-	sTim_ChnOutInit.TIMER_CH_NegOut_Mode					= TIMER_CH_OutMode_Output;
-	sTim_ChnOutInit.TIMER_CH_DTG_MainPrescaler				= 40;
-	sTim_ChnOutInit.TIMER_CH_DTG_AuxPrescaler				= 0;
-	sTim_ChnOutInit.TIMER_CH_DTG_ClockSource				= TIMER_CH_DTG_ClkSrc_TIMER_CLK;
+	sTim_ChnOutInit.TIMER_CH_DirOut_Polarity		= TIMER_CHOPolarity_NonInverted;
+	//sTim_ChnOutInit.TIMER_CH_DirOut_Source			= TIMER_CH_OutSrc_DTG;
+	sTim_ChnOutInit.TIMER_CH_DirOut_Source			= TIMER_CH_OutSrc_REF;
+	sTim_ChnOutInit.TIMER_CH_DirOut_Mode				= TIMER_CH_OutMode_Output;
+	sTim_ChnOutInit.TIMER_CH_NegOut_Polarity		= TIMER_CHOPolarity_NonInverted;
+	//sTim_ChnOutInit.TIMER_CH_NegOut_Source			= TIMER_CH_OutSrc_DTG;
+	sTim_ChnOutInit.TIMER_CH_NegOut_Source			= TIMER_CH_OutSrc_REF;
+	sTim_ChnOutInit.TIMER_CH_NegOut_Mode				= TIMER_CH_OutMode_Output;
+	sTim_ChnOutInit.TIMER_CH_DTG_MainPrescaler	= 40;
+	sTim_ChnOutInit.TIMER_CH_DTG_AuxPrescaler		= 0;
+	sTim_ChnOutInit.TIMER_CH_DTG_ClockSource		= TIMER_CH_DTG_ClkSrc_TIMER_CLK;
 	TIMER_ChnOutInit (MDR_TIMER3, &sTim_ChnOutInit);
 	
 	
-	sTim_ChnInit.TIMER_CH_Number 							= TIMER_CHANNEL2;
+	sTim_ChnInit.TIMER_CH_Number 								= TIMER_CHANNEL2;
 	TIMER_ChnInit (MDR_TIMER3, &sTim_ChnInit);
 	
 	
@@ -548,27 +555,27 @@ void myADC_Init()
 	ADC_StructInit (&ADC_InitStructure);
 	ADC_DeInit ();
 	ADC_InitStructure.ADC_SynchronousMode 			= ADC_SyncMode_Independent;
-	ADC_InitStructure.ADC_StartDelay				= 0;
-	ADC_InitStructure.ADC_TempSensor				= ADC_TEMP_SENSOR_Disable;
+	ADC_InitStructure.ADC_StartDelay						= 0;
+	ADC_InitStructure.ADC_TempSensor						= ADC_TEMP_SENSOR_Disable;
 	ADC_InitStructure.ADC_TempSensorAmplifier		= ADC_TEMP_SENSOR_AMPLIFIER_Disable;
-	ADC_InitStructure.ADC_TempSensorConversion		= ADC_TEMP_SENSOR_CONVERSION_Disable;
+	ADC_InitStructure.ADC_TempSensorConversion	= ADC_TEMP_SENSOR_CONVERSION_Disable;
 	ADC_InitStructure.ADC_IntVRefConversion			= ADC_VREF_CONVERSION_Disable;
-	ADC_InitStructure.ADC_IntVRefTrimming			= 0;
+	ADC_InitStructure.ADC_IntVRefTrimming				= 0;
 	ADC_Init (&ADC_InitStructure);
 	
 	ADCx_StructInit (&ADCx_InitStructure);
-	ADCx_InitStructure.ADC_ClockSource				= ADC_CLOCK_SOURCE_CPU;
-	ADCx_InitStructure.ADC_SamplingMode				= ADC_SAMPLING_MODE_SINGLE_CONV;
+	ADCx_InitStructure.ADC_ClockSource					= ADC_CLOCK_SOURCE_CPU;
+	ADCx_InitStructure.ADC_SamplingMode					= ADC_SAMPLING_MODE_SINGLE_CONV;
 	ADCx_InitStructure.ADC_ChannelSwitching			= ADC_CH_SWITCHING_Disable;
-	ADCx_InitStructure.ADC_ChannelNumber			= ADC_CH_ADC4;
-	ADCx_InitStructure.ADC_Channels					= 0;
-	ADCx_InitStructure.ADC_LevelControl				= ADC_LEVEL_CONTROL_Disable;
-	ADCx_InitStructure.ADC_LowLevel					= 0;
-	ADCx_InitStructure.ADC_HighLevel				= 0;
-	ADCx_InitStructure.ADC_VRefSource				= ADC_VREF_SOURCE_INTERNAL;
-	ADCx_InitStructure.ADC_IntVRefSource			= ADC_INT_VREF_SOURCE_INEXACT;
-	ADCx_InitStructure.ADC_Prescaler				= ADC_CLK_div_8;
-	ADCx_InitStructure.ADC_DelayGo					= 0;
+	ADCx_InitStructure.ADC_ChannelNumber				= ADC_CH_ADC4;
+	ADCx_InitStructure.ADC_Channels							= 0;
+	ADCx_InitStructure.ADC_LevelControl					= ADC_LEVEL_CONTROL_Disable;
+	ADCx_InitStructure.ADC_LowLevel							= 0;
+	ADCx_InitStructure.ADC_HighLevel						= 0;
+	ADCx_InitStructure.ADC_VRefSource						= ADC_VREF_SOURCE_INTERNAL;
+	ADCx_InitStructure.ADC_IntVRefSource				= ADC_INT_VREF_SOURCE_INEXACT;
+	ADCx_InitStructure.ADC_Prescaler						= ADC_CLK_div_8;
+	ADCx_InitStructure.ADC_DelayGo							= 0;
 	ADC1_Init (&ADCx_InitStructure);
 	
 	ADC1_Cmd (ENABLE);	
@@ -598,7 +605,17 @@ void Timer3_IRQHandler ()
 			
 		Uout_ADC = (float) ((int32_t)(MDR_ADC->ADC1_RESULT & 0xFFF) - Vref_165)/(float)2047.0;
 		//Uout_ADC = 0.3;
+		
+//		Iout_ADC = 
+
+		sogi.omega = pll.omega;
+		
+		SOGI_UpdateCoefficients(&sogi);
 			
+		SOGI_Run(&sogi, Uout_ADC);
+			
+		PLL_Run(&pll, sogi.alpha, sogi.beta);
+		
 		
 		Uout_ref_sin = Uout_ref * sinus_ref[i];
 			i++;
