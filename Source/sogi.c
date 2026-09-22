@@ -100,15 +100,18 @@ void SOGI_Init(SOGI_Q15_t *s) {
 //	SOGI_UpdateCoefficients (s);
 }
 
-void SOGI_Run(SOGI_Q15_t *s, int32_t u) {
+void SOGI_Run(SOGI_Q15_t *s, int16_t u) {
 	int64_t alpha;
 	int64_t beta;
+	int32_t u_q30;
+	
+	u_q30 = u << 15;
 	
 	/*
 	 * Alpha channel
 	 */
 	alpha = 
-				  (int64_t)s->bD0 * u
+				  (int64_t)s->bD0 * u_q30
 				+ (int64_t)s->bD1 * s->u_z1
 				+ (int64_t)s->bD2 * s->u_z2
 				+ (int64_t)s->a1  * s->alpha_z1
@@ -120,7 +123,7 @@ void SOGI_Run(SOGI_Q15_t *s, int32_t u) {
 	 * Beta channel
 	 */
 	beta = 
-				  (int64_t)s->bQ0 * u
+				  (int64_t)s->bQ0 * u_q30
 				+ (int64_t)s->bQ1 * s->u_z1
 				+ (int64_t)s->bQ2 * s->u_z2
 				+ (int64_t)s->a1  * s->beta_z1
@@ -131,14 +134,14 @@ void SOGI_Run(SOGI_Q15_t *s, int32_t u) {
 	 /*
 	 *  Saturation and Outputs
 	 */	
-		s->alpha 	= sat_q15(alpha);
-		s->beta 	= sat_q15(beta);
+		s->alpha 	= sat_q15(alpha>>15);
+		s->beta 	= sat_q15(beta>>15);
 				
 	/*
 	 * Update state
 	 */
 	 s->u_z2 = s->u_z1;
-	 s->u_z1 = u;
+	 s->u_z1 = u_q30;
 	 
 	 s->alpha_z2 = s->alpha_z1;
 	 s->alpha_z1 = alpha;

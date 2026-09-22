@@ -56,7 +56,7 @@ typedef struct
 } SOGI_Q15_t;
 
 void SOGI_Init(SOGI_Q15_t *s);
-void SOGI_Run(SOGI_Q15_t *s, int32_t u);
+void SOGI_Run(SOGI_Q15_t *s, int16_t u);
 void SOGI_UpdateCoefficients (SOGI_Q15_t *s);
 
 #endif /*SOGI_Q125_H*/
