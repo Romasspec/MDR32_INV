@@ -1,6 +1,6 @@
-#ifndef SOGI_H
-#define SOGI_H
-
+#ifndef SOGI_Q125_H
+#define SOGI_Q125_H
+#include <stdint.h>
 #define PI				3.14159265359f
 
 #define F_PWM			20000.0f
@@ -27,36 +27,36 @@
 
 typedef struct
 {
-	float alpha;
-	float beta;
+	int32_t alpha;
+	int32_t beta;
 	
-	float u_z1;
-	float u_z2;
+	int32_t u_z1;
+	int32_t u_z2;
 	
-	float alpha_z1;
-	float alpha_z2;
+	int32_t alpha_z1;
+	int32_t alpha_z2;
 	
-	float beta_z1;
-	float beta_z2;
+	int32_t beta_z1;
+	int32_t beta_z2;
 	
-	float omega;
-	float k;
-	float Ts;
+	int32_t omega;
+	int32_t k;
+	int32_t Ts;
 	
-	float bD0;
-	float bD1;
-	float bD2;
+	int32_t bD0;
+	int32_t bD1;
+	int32_t bD2;
 	
-	float bQ0;
-	float bQ1;
-	float bQ2;
+	int32_t bQ0;
+	int32_t bQ1;
+	int32_t bQ2;
 	
-	float a1;
-	float a2;	
-} SOGI_t;
+	int32_t a1;
+	int32_t a2;	
+} SOGI_Q15_t;
 
-void SOGI_Init(SOGI_t *s);
-void SOGI_Run(SOGI_t *s, float u);
-void SOGI_UpdateCoefficients (SOGI_t *s);
+void SOGI_Init(SOGI_Q15_t *s);
+void SOGI_Run(SOGI_Q15_t *s, int32_t u);
+void SOGI_UpdateCoefficients (SOGI_Q15_t *s);
 
-#endif /*SOGI_H*/
+#endif /*SOGI_Q125_H*/

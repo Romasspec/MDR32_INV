@@ -1,27 +1,31 @@
 #ifndef PLL_H
 #define PLL_H
+#include <stdint.h>
 
 typedef struct
 {
-	float theta;
-	float omega;
+	int32_t theta;
+	int32_t omega;
 	
-	float integrator;
+	int32_t integrator;
 	
-	float kp;
-	float ki;
+	int32_t kp;
+	int32_t ki;
 	
-	float omega_nom;
+	int32_t omega_nom;
 	
-	float omega_min;
-	float omega_max;
-	float theta_2PI;
+	int32_t omega_min;
+	int32_t omega_max;
+	int32_t theta_2PI;
 	
-	float Ts;	
-} PLL_t;
+	int32_t Ts;
+	
+	uint32_t phase_inc;
+	uint32_t phase;
+} PLL_Q15_t;
 
-void PLL_Init(PLL_t *pll);
-void PLL_Run(PLL_t *pll, float alpha, float beta);
-void ParkTransform(float alpha, float beta, float sin_theta, float cos_theta, float *d, float *q);
+void PLL_Init(PLL_Q15_t *pll);
+void PLL_Run(PLL_Q15_t *pll, int16_t alpha, int16_t beta);
+void ParkTransform(int16_t alpha, int16_t beta, int16_t sin_theta, int16_t cos_theta, int16_t *d, int16_t *q);
 
 #endif /*PLL_H*/

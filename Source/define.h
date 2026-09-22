@@ -32,6 +32,7 @@
 
 #define   _IQ24(A)      (long) ((A) * 16777216.0L)
 #define   _IQ12(A)      (long) ((A) * 4096.0L)
+#define 	_IQ16(A)			(long) ((A) * 65536.0L)
 
 //#define SINGLE_PHASE
 #define DOUBLE_PHASE

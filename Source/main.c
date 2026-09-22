@@ -3,6 +3,7 @@
 #include <MDR32F9Qx_can.h>
 #include <MDR32F9Qx_timer.h>
 #include <MDR32F9Qx_adc.h>
+#include <MDR32F9Qx_dac.h>
 #include "define.h"
 #include "CNTL_3P3Z.h"
 #include "PID.h"
@@ -81,6 +82,7 @@ void task_m1 (void);
 void task_m2 (void);
 void set_Fnom (void);
 void myADC_Init(void);
+void myDAC_Init(void);
 
 CAN_RxMsgTypeDef RxMsg;
 CAN_TxMsgTypeDef TxMsg;
@@ -108,8 +110,8 @@ float Kdc;
 CNTL_3P3Z_CoefStruct	CNTL_3P3Z_CoefStruct1;
 CNTL_PID_CoefStruct 	CNTL_PID_CoefStruct1;
 
-SOGI_t sogi;
-PLL_t pll;
+SOGI_Q15_t sogi;
+PLL_Q15_t pll;
 
 int main (void)
 {
@@ -127,6 +129,7 @@ int main (void)
 	myADC_Init ();
 	myTimer1_Init ();	
 	myTimer3_Init ();
+	myDAC_Init ();
 	
 	faza_shag = 0;
 	VCNTTimer = 0;
@@ -165,9 +168,10 @@ int main (void)
 	CNTL_3P3Z_CoefStruct1.min = -0.8;
 	
 	Uout_ref = 0.2;	
-	Vref_165 = 2047;
+	Vref_165 = 2800;
 	
 	SOGI_Init(&sogi);
+	//SOGI_UpdateCoefficients(&sogi);
 	PLL_Init(&pll);
 	
 	task_m = &task_m1;
@@ -236,7 +240,8 @@ void task_m1 ()
 				if (CANmsg.pf == PGN_DEV_Vref)							// 0x04
 				{
 					//kp = CANmsg.data_u32[0];
-					memcpy(&Vref_165, &CANmsg.data_u32[0], 4);
+					memcpy(&Vref_165, &CANmsg.data_u32[1], 4);
+					memcpy(&pll.phase_inc, &CANmsg.data_u32[0], 4);
 				}
 				
 				
@@ -263,9 +268,9 @@ void task_m1 ()
 //				MDR_PORTD->RXTX &=~(1<<PD6);
 //				ADC_Result = (uint16_t) ADC1_GetResult ();				
 				
-				MDR_ADC->ADC1_CFG |= ADC1_CFG_REG_GO;				
-				while ((MDR_ADC->ADC1_STATUS & ADC1_FLAG_END_OF_CONVERSION) == 0) {}							
-				ADC_Result = (uint16_t) MDR_ADC->ADC1_RESULT;				
+//				MDR_ADC->ADC1_CFG |= ADC1_CFG_REG_GO;				
+//				while ((MDR_ADC->ADC1_STATUS & ADC1_FLAG_END_OF_CONVERSION) == 0) {}							
+//				ADC_Result = (uint16_t) MDR_ADC->ADC1_RESULT;				
 					
 				CANmsg.p		= 7;
 				CANmsg.r		= 0;
@@ -279,14 +284,22 @@ void task_m1 ()
 //				CANmsg.data[0]	= ADC_Result & 0xFF;
 //				CANmsg.data[1]	= (ADC_Result >> 8) & 0xFF;
 				
+				
+				
 				TxMsg.ID 		= CANmsg.idt;
 				TxMsg.DLC		= CANmsg.len;
-				TxMsg.IDE		= CAN_ID_EXT;
+				TxMsg.IDE		= CAN_ID_EXT;			
 				
-				memcpy(&TxMsg.Data[0], (float*)&Uout_ADC, 4);
+				//memcpy(&TxMsg.Data[0], (float*)&Uout_ADC, 4);
 				//TxMsg.Data[0]	= Uout; //CANmsg.data_u32[0];
-				memcpy(&TxMsg.Data[1], &Uout, 4);
+				//memcpy(&TxMsg.Data[1], &Uout, 4);
 				//TxMsg.Data[1]	= PIDout_gui;
+				
+				
+				memcpy(&TxMsg.Data[0], &pll.omega, 4);
+				memcpy(&TxMsg.Data[1], &pll.phase_inc, 4);
+				
+				
 				
 				CAN_Transmit (MDR_CAN2, 0, &TxMsg);
 			}
@@ -341,7 +354,8 @@ void RST_clk_Init()
 	RST_CLK_PCLKcmd ( RST_CLK_PCLK_TIMER3,	ENABLE);
 	RST_CLK_PCLKcmd	( RST_CLK_PCLK_UART2, 	ENABLE);
 	RST_CLK_PCLKcmd	( RST_CLK_PCLK_ADC,	  	ENABLE);
-	RST_CLK_PCLKcmd (RST_CLK_PCLK_WWDG, 	ENABLE);	
+	RST_CLK_PCLKcmd (RST_CLK_PCLK_WWDG, 		ENABLE);
+	RST_CLK_PCLKcmd (RST_CLK_PCLK_DAC, 			ENABLE);
 }
 
 void myPort_Init ()
@@ -399,6 +413,15 @@ void myPort_Init ()
 //	Port_Initstructure.PORT_OE		= PORT_OE_OUT;
 	Port_Initstructure.PORT_Pin		= PORT_Pin_7;
 	PORT_Init (MDR_PORTE, &Port_Initstructure);
+	
+	PORT_StructInit (&Port_Initstructure);
+	Port_Initstructure.PORT_Pin		= PORT_Pin_0;
+	Port_Initstructure.PORT_OE		= PORT_OE_IN;
+	Port_Initstructure.PORT_FUNC	= PORT_FUNC_PORT;
+	Port_Initstructure.PORT_MODE	= PORT_MODE_ANALOG;
+	Port_Initstructure.PORT_SPEED	= PORT_SPEED_SLOW;
+	PORT_Init (MDR_PORTD, &Port_Initstructure);
+	
 }
 
 void CAN2_Init ()
@@ -580,6 +603,12 @@ void myADC_Init()
 	
 	ADC1_Cmd (ENABLE);	
 }
+void myDAC_Init ()
+{
+	DAC2_Init(DAC2_AVCC);
+	DAC2_Cmd(ENABLE);
+}
+
 //void set_Fnom ()
 //{
 //	Tim_ARR = F_NOM;
@@ -596,35 +625,40 @@ void Timer3_IRQHandler ()
 	{
 		MDR_TIMER3->STATUS &=~TIMER_STATUS_CNT_ZERO;
 		VCNTTimer++;
-//		MDR_PORTD->RXTX |= (1<<PD6);
+		
 		MDR_ADC->ADC1_CFG |= ADC1_CFG_REG_GO;				
 		while ((MDR_ADC->ADC1_STATUS & ADC1_FLAG_END_OF_CONVERSION) == 0) {}
-//		MDR_PORTD->RXTX &=~(1<<PD6);			
-		
-		Uout = (MDR_ADC->ADC1_RESULT & 0xFFF) - Vref_165;
 			
-		Uout_ADC = (float) ((int32_t)(MDR_ADC->ADC1_RESULT & 0xFFF) - Vref_165)/(float)2047.0;
+		//Uout_ADC = (float) ((int32_t)(MDR_ADC->ADC1_RESULT & 0xFFF) - Vref_165)/(float)2047.0;
 		//Uout_ADC = 0.3;
-		
+		int32_t Uout_ADC_32 = ((int32_t)(MDR_ADC->ADC1_RESULT & 0xFFF) - Vref_165)<<4;
+			
+			
+			MDR_PORTD->RXTX |= (1<<PD6);
 //		Iout_ADC = 
 
-		sogi.omega = pll.omega;
+//		sogi.omega = pll.omega;
+//		
+//		SOGI_UpdateCoefficients(&sogi);
+//			
+		SOGI_Run(&sogi, Uout_ADC_32);
 		
-		SOGI_UpdateCoefficients(&sogi);
-			
-		SOGI_Run(&sogi, Uout_ADC);
-			
+		pll.phase += pll.phase_inc;	
 		PLL_Run(&pll, sogi.alpha, sogi.beta);
-		
+			
+		DAC2_SetData ((pll.omega >> 4) + 2047);
+//		DAC2_SetData ((sogi.beta >> 4) + 2047);
+			
+		MDR_PORTD->RXTX &=~(1<<PD6);
 		
 		Uout_ref_sin = Uout_ref * sinus_ref[i];
 			i++;
 		if (i == STEP_SINUS) {
 			i=0;
-			MDR_PORTD->RXTX ^= (1<<PD6);
+			//MDR_PORTD->RXTX ^= (1<<PD6);
 		}
 		
-		CNTL_3P3Z (&CNTL_out, &Uout_ref_sin, &Uout_ADC, &CNTL_3P3Z_CoefStruct1);
+		//CNTL_3P3Z (&CNTL_out, &Uout_ref_sin, &Uout_ADC, &CNTL_3P3Z_CoefStruct1);
 		//CNTL_PID  (&CNTL_out, &Uout_ref_sin, &Uout_ADC, &CNTL_PID_CoefStruct1);
 		
 		PIDout_gui = CNTL_out;	

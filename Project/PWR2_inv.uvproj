@@ -10,6 +10,7 @@
       <TargetName>PWR_inv</TargetName>
       <ToolsetNumber>0x4</ToolsetNumber>
       <ToolsetName>ARM-ADS</ToolsetName>
+      <pCCUsed>5060422::V5.06 update 4 (build 422)::ARMCC</pCCUsed>
       <TargetOption>
         <TargetCommonOption>
           <Device>MDR32F9Q2I</Device>
@@ -467,6 +468,16 @@
               <FileType>1</FileType>
               <FilePath>..\Source\PID.c</FilePath>
             </File>
+            <File>
+              <FileName>sogi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Source\sogi.c</FilePath>
+            </File>
+            <File>
+              <FileName>pll.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Source\pll.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -521,6 +532,11 @@
               <FileName>MDR32F9Qx_adc.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\MDR32F9Qx_SPL\MDR32F9Qx_adc.h</FilePath>
+            </File>
+            <File>
+              <FileName>MDR32F9Qx_dac.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\MDR32F9Qx_SPL\MDR32F9Qx_dac.c</FilePath>
             </File>
           </Files>
         </Group>
