@@ -104,6 +104,7 @@ void PLL_Run(PLL_Q15_t *pll, int16_t alpha, int16_t beta)
 	int16_t uq;
 	int16_t ud;
 	int32_t error;
+	int32_t omega_hz_q15;
 //	int64_t temp;
 		
 	sin_theta = get_sin_1024(pll->phase >> 22);
@@ -115,7 +116,7 @@ void PLL_Run(PLL_Q15_t *pll, int16_t alpha, int16_t beta)
 		
 	error = uq;											// q15
 	
-	pll->omega = (pll->kp * error) ;		// q15 * q15 = q30 >>15
+	omega_hz_q15 = (pll->kp * error) >> 15;		// q15 * q15 = q30 >>15
 		
 	/*
 	 * PI
@@ -129,11 +130,28 @@ void PLL_Run(PLL_Q15_t *pll, int16_t alpha, int16_t beta)
 		  pll->integrator = -1073741824;	
 	 
 	 
-	 pll->omega = pll->omega + (pll->integrator );
+	 omega_hz_q15 = omega_hz_q15 + (pll->integrator >> 15);
 	
+	// Ограничиваем отклонение частоты в разумных пределах (например, +/- 30 Гц)
+	// 30 Гц в Q15 = 30 * 32768 = 983040
+	if(omega_hz_q15 > 983040)  omega_hz_q15 = 983040;
+	if(omega_hz_q15 < -983040) omega_hz_q15 = -983040;
+	
+	// Сохраняем для отладки
+	 pll->omega = omega_hz_q15; //поправка к частоте, показывает на сколько нужно увеличить или уменьшить частоту
+	// выход регулятора q15 значит поправка к частоте на 1 гц равна 32768
+	// а для изменения чатоты на 1 гц в формате фазы это 1 гц * 2^32 / 20000 = 214748 это поправка к фазе
+	 // поэтому появляется коэффициент соответствия 214748/32768 = 6,5536
+	 
+	// 6. Масштабирование отклонения частоты (Гц в Q15) в шаг фазы (uint32_t)
+	// Нам нужно умножить omega_hz_q15 на коэффициент (2^32 / (20000 * 32768)) = 6.5536
+	// В фиксированной точке 6.5536 будет: (omega_hz_q15 * 26843) >> 12
+	int32_t phase_inc_delta = (omega_hz_q15 * 26843) >> 12;
 
-	
-	pll->phase_inc = pll->phase_base + pll->omega;
+	pll->phase_inc = pll->phase_base + phase_inc_delta;
+	 
+	 
+//	pll->phase_inc = pll->phase_base + pll->omega;
 	 
 	if(pll->phase_inc > pll->phase_inc_max)
 		pll->phase_inc = pll->phase_inc_max;
