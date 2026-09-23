@@ -20,7 +20,10 @@ typedef struct
 	
 	int32_t Ts;
 	
+	uint32_t phase_base;
 	uint32_t phase_inc;
+	uint32_t phase_inc_max;
+	uint32_t phase_inc_min;
 	uint32_t phase;
 } PLL_Q15_t;
 

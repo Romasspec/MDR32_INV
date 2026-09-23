@@ -54,11 +54,11 @@ void ParkTransform_Q15(int16_t alpha, int16_t beta, int16_t sin_theta, int16_t c
 	int32_t ud;
 	int32_t uq;
 	
-	ud = ( (int32_t)alpha * cos_theta + (int32_t)beta * sin_theta);
-	uq = (-(int32_t)alpha * sin_theta + (int32_t)beta * cos_theta);
+//	uq = ( (int32_t)alpha * cos_theta + (int32_t)beta * sin_theta); // в этом варианте Ud стремиться к нулю при совпадении фаз
+//	ud = (-(int32_t)alpha * sin_theta + (int32_t)beta * cos_theta); // uq максимальное отрицательное значение
 	
-//	ud = ( (int32_t)alpha * sin_theta + (int32_t)beta * cos_theta);
-//	uq = ( (int32_t)alpha * cos_theta - (int32_t)beta * sin_theta);
+	ud = (int32_t)alpha * sin_theta - (int32_t)beta * cos_theta; // в этом варианте Uq стремиться к нулю при совпадении фаз
+	uq = (int32_t)alpha * cos_theta + (int32_t)beta * sin_theta; // ud максимальное положительное значение
 	
 	*d = (int16_t)(ud >> 15);
 	*q = (int16_t)(uq >> 15);
@@ -82,15 +82,18 @@ void PLL_Init(PLL_Q15_t *pll)
 	 * init value
 	 */
 	
-	pll->kp = (0.2*32768UL);
-	pll->ki = (0.01*32768UL);
+	pll->kp = 50500;
+	pll->ki = 65000;
 	
 	pll->omega_min = -32768;
 	pll->omega_max = 32767;
 	
 	pll->theta_2PI = 0;
 
-	pll->phase_inc = 50UL * 4294967296UL / 20000UL; //10737418UL;
+	pll->phase_base 			= 52UL * 4294967296UL / 20000UL; //10737418UL;
+	pll->phase_inc = pll->phase_base;
+	pll->phase_inc_max 	= 70UL * 4294967296UL / 20000UL;
+	pll->phase_inc_min 	= 30UL * 4294967296UL / 20000UL;
 	pll->phase 		 = 0;
 }
 
@@ -101,6 +104,7 @@ void PLL_Run(PLL_Q15_t *pll, int16_t alpha, int16_t beta)
 	int16_t uq;
 	int16_t ud;
 	int32_t error;
+//	int64_t temp;
 		
 	sin_theta = get_sin_1024(pll->phase >> 22);
 	cos_theta = get_cos_1024(pll->phase >> 22);
@@ -108,46 +112,63 @@ void PLL_Run(PLL_Q15_t *pll, int16_t alpha, int16_t beta)
 	//uq = alpha * cos_theta - beta * sin_theta;
 	
 	ParkTransform_Q15(alpha, beta, sin_theta, cos_theta, &ud, &uq);
-	
-	pll->omega = uq;
 		
-	return;
+	error = uq;											// q15
 	
-	/*
-	 * нормировка
-	 * 230 Vrms -> 325 Vpeak
-	 * на вход подаю уже нормированную величину поэтому делить не надо
-	 */
-	
-	error = uq;
-	
+	pll->omega = (pll->kp * error) ;		// q15 * q15 = q30 >>15
+		
 	/*
 	 * PI
 	 */
-	pll->integrator += (pll->ki * error) >> 15;
+	pll->integrator += (pll->ki * error);	// q30 + (q15 * q15) 
+//	
+	 if(pll->integrator >= 1073741823)
+		  pll->integrator =  1073741823;
+	 
+	 if(pll->integrator < -1073741824) 
+		  pll->integrator = -1073741824;	
+	 
+	 
+	 pll->omega = pll->omega + (pll->integrator );
 	
-	pll->omega = ((pll->kp * error) >> 15) + pll->integrator;
+
+	
+	pll->phase_inc = pll->phase_base + pll->omega;
+	 
+	if(pll->phase_inc > pll->phase_inc_max)
+		pll->phase_inc = pll->phase_inc_max;
+
+	if(pll->phase_inc < pll->phase_inc_min)
+		pll->phase_inc = pll->phase_inc_min;
+	 
+	//		pll->omega += pll->integrator;
+	 
+//		if(pll->omega > pll->phase_inc_max)
+//			pll->omega = pll->phase_inc_max;
+
+//		if(pll->omega < pll->phase_inc_min)
+//			pll->omega = pll->phase_inc_min;
 	
 	
-	/*
-	 * Ограничение частоты
-	 */
-	 
-	 if(pll->omega > pll->omega_max)
-		  pll->omega = pll->omega_max;
-	 
-	 if(pll->omega < pll->omega_min)
-		  pll->omega = pll->omega_min;
-	 
-	 /*
-		* Фаза
-	  */
-	 
-	 pll->theta += pll->omega * pll->Ts;
-	 
-	 if(pll->theta >= pll->theta_2PI)
-		  pll->theta -= pll->theta_2PI;
-	 
-	 if(pll->theta < 0.0f)
-		  pll->theta += pll->theta_2PI;
+//	/*
+//	 * Ограничение частоты
+//	 */
+//	 
+//	 if(pll->omega > pll->omega_max)
+//		  pll->omega = pll->omega_max;
+//	 
+//	 if(pll->omega < pll->omega_min)
+//		  pll->omega = pll->omega_min;
+//	 
+//	 /*
+//		* Фаза
+//	  */
+//	 
+//	 pll->theta += pll->omega * pll->Ts;
+//	 
+//	 if(pll->theta >= pll->theta_2PI)
+//		  pll->theta -= pll->theta_2PI;
+//	 
+//	 if(pll->theta < 0.0f)
+//		  pll->theta += pll->theta_2PI;
 }

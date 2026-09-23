@@ -248,13 +248,15 @@ void task_m1 ()
 				if (CANmsg.pf == PGN_DEV_kp)							// 0x05
 				{
 					//kp = CANmsg.data_u32[0];
-					memcpy(&CNTL_PID_CoefStruct1.kp, &CANmsg.data_u32[0], 4);
+					//memcpy(&CNTL_PID_CoefStruct1.kp, &CANmsg.data_u32[0], 4);
+					memcpy(&pll.kp, &CANmsg.data_u32[0], 4);
 				}
 				
 				if (CANmsg.pf == PGN_DEV_ki)							// 0x06
 				{
 					//ki = CANmsg.data_u32[0];
-					memcpy(&CNTL_PID_CoefStruct1.ki, &CANmsg.data_u32[0], 4);					
+					//memcpy(&CNTL_PID_CoefStruct1.ki, &CANmsg.data_u32[0], 4);
+						memcpy(&pll.ki, &CANmsg.data_u32[0], 4);					
 				}
 			}
 			
@@ -298,6 +300,7 @@ void task_m1 ()
 				
 				memcpy(&TxMsg.Data[0], &pll.omega, 4);
 				memcpy(&TxMsg.Data[1], &pll.phase_inc, 4);
+				//memcpy(&TxMsg.Data[1], &pll.kp, 4);
 				
 				
 				
@@ -621,6 +624,7 @@ void myDAC_Init ()
 void Timer3_IRQHandler ()
 {
 	static volatile uint16_t i = 0;
+	static volatile uint16_t PLL_period = 9;
 	if (MDR_TIMER3->STATUS & TIMER_STATUS_CNT_ZERO)
 	{
 		MDR_TIMER3->STATUS &=~TIMER_STATUS_CNT_ZERO;
@@ -634,7 +638,7 @@ void Timer3_IRQHandler ()
 		int32_t Uout_ADC_32 = ((int32_t)(MDR_ADC->ADC1_RESULT & 0xFFF) - Vref_165)<<4;
 			
 			
-			MDR_PORTD->RXTX |= (1<<PD6);
+//			MDR_PORTD->RXTX |= (1<<PD6);
 //		Iout_ADC = 
 
 //		sogi.omega = pll.omega;
@@ -643,13 +647,20 @@ void Timer3_IRQHandler ()
 //			
 		SOGI_Run(&sogi, Uout_ADC_32);
 		
-		pll.phase += pll.phase_inc;	
-		PLL_Run(&pll, sogi.alpha, sogi.beta);
+		pll.phase += pll.phase_inc;
 			
-		DAC2_SetData ((pll.omega >> 4) + 2047);
+		DAC2_SetData ((pll.phase >> 20));
+		//	DAC2_SetData ((pll.omega >> 4)+2047);
+			
+		if(PLL_period-- == 0) {
+			PLL_Run(&pll, sogi.alpha, sogi.beta);
+			PLL_period = 9;
+			MDR_PORTD->RXTX ^= (1<<PD6);
+		}
+		
 //		DAC2_SetData ((sogi.beta >> 4) + 2047);
 			
-		MDR_PORTD->RXTX &=~(1<<PD6);
+//		MDR_PORTD->RXTX &=~(1<<PD6);
 		
 		Uout_ref_sin = Uout_ref * sinus_ref[i];
 			i++;
