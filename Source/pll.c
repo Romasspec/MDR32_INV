@@ -47,8 +47,6 @@ int16_t get_cos_1024(uint32_t phase) {
     return get_sin_1024(phase + 256);
 }
 
-
-
 void ParkTransform_Q15(int16_t alpha, int16_t beta, int16_t sin_theta, int16_t cos_theta, int16_t *d, int16_t *q)
 {		
 	int32_t ud;
@@ -90,10 +88,10 @@ void PLL_Init(PLL_Q15_t *pll)
 	
 	pll->theta_2PI = 0;
 
-	pll->phase_base 			= 52UL * 4294967296UL / 20000UL; //10737418UL;
-	pll->phase_inc = pll->phase_base;
-	pll->phase_inc_max 	= 70UL * 4294967296UL / 20000UL;
-	pll->phase_inc_min 	= 30UL * 4294967296UL / 20000UL;
+	pll->phase_base 			= 60UL * 4294967296UL / 20000UL; //10737418UL;
+	pll->phase_inc 				= pll->phase_base;
+	pll->phase_inc_max 		= 70UL * 4294967296UL / 20000UL;
+	pll->phase_inc_min 		= 30UL * 4294967296UL / 20000UL;
 	pll->phase 		 = 0;
 }
 
@@ -105,24 +103,21 @@ void PLL_Run(PLL_Q15_t *pll, int16_t alpha, int16_t beta)
 	int16_t ud;
 	int32_t error;
 	int32_t omega_hz_q15;
-//	int64_t temp;
 		
 	sin_theta = get_sin_1024(pll->phase >> 22);
-	cos_theta = get_cos_1024(pll->phase >> 22);
-		
-	//uq = alpha * cos_theta - beta * sin_theta;
+	cos_theta = get_cos_1024(pll->phase >> 22);	
 	
 	ParkTransform_Q15(alpha, beta, sin_theta, cos_theta, &ud, &uq);
 		
-	error = uq;											// q15
+	error = uq;																// q15
 	
 	omega_hz_q15 = (pll->kp * error) >> 15;		// q15 * q15 = q30 >>15
 		
 	/*
 	 * PI
 	 */
-	pll->integrator += (pll->ki * error);	// q30 + (q15 * q15) 
-//	
+	pll->integrator += (pll->ki * error);			// q30 + (q15 * q15) 
+	
 	 if(pll->integrator >= 1073741823)
 		  pll->integrator =  1073741823;
 	 
@@ -131,27 +126,29 @@ void PLL_Run(PLL_Q15_t *pll, int16_t alpha, int16_t beta)
 	 
 	 
 	 omega_hz_q15 = omega_hz_q15 + (pll->integrator >> 15);
-	
+	// Примем что значение 32768 это частота 1 Гц.
 	// Ограничиваем отклонение частоты в разумных пределах (например, +/- 30 Гц)
 	// 30 Гц в Q15 = 30 * 32768 = 983040
 	if(omega_hz_q15 > 983040)  omega_hz_q15 = 983040;
 	if(omega_hz_q15 < -983040) omega_hz_q15 = -983040;
 	
 	// Сохраняем для отладки
-	 pll->omega = omega_hz_q15; //поправка к частоте, показывает на сколько нужно увеличить или уменьшить частоту
-	// выход регулятора q15 значит поправка к частоте на 1 гц равна 32768
-	// а для изменения чатоты на 1 гц в формате фазы это 1 гц * 2^32 / 20000 = 214748 это поправка к фазе
-	 // поэтому появляется коэффициент соответствия 214748/32768 = 6,5536
-	 
+	 pll->omega = uq;
+	
 	// 6. Масштабирование отклонения частоты (Гц в Q15) в шаг фазы (uint32_t)
 	// Нам нужно умножить omega_hz_q15 на коэффициент (2^32 / (20000 * 32768)) = 6.5536
 	// В фиксированной точке 6.5536 будет: (omega_hz_q15 * 26843) >> 12
-	int32_t phase_inc_delta = (omega_hz_q15 * 26843) >> 12;
+	 
+	// выход регулятора это поправка к частоте, показывает на сколько нужно увеличить или уменьшить частоту
+	// выход регулятора q15 значит поправка к частоте на 1 гц равна 32768
+	// а для изменения чатоты на 1 гц в формате фазы это 1 гц * 2^32 / 20000 = 214748 это поправка к фазе
+	// поэтому появляется коэффициент соответствия 214748/32768 = 6,5536.
+	// Но а нам необходимо например ограничить максимальное изменение частоты например на +/- 15 гц
+	// поэтому коэффициент 6,5536 надо умножить 15 Гц 6,5536 * 15 = 98,34 равно примерно 100
+	
+	int32_t phase_inc_delta = (omega_hz_q15 * 100) ;
 
 	pll->phase_inc = pll->phase_base + phase_inc_delta;
-	 
-	 
-//	pll->phase_inc = pll->phase_base + pll->omega;
 	 
 	if(pll->phase_inc > pll->phase_inc_max)
 		pll->phase_inc = pll->phase_inc_max;
@@ -159,7 +156,7 @@ void PLL_Run(PLL_Q15_t *pll, int16_t alpha, int16_t beta)
 	if(pll->phase_inc < pll->phase_inc_min)
 		pll->phase_inc = pll->phase_inc_min;
 	 
-	//		pll->omega += pll->integrator;
+//		pll->omega += pll->integrator;
 	 
 //		if(pll->omega > pll->phase_inc_max)
 //			pll->omega = pll->phase_inc_max;

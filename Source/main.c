@@ -168,7 +168,7 @@ int main (void)
 	CNTL_3P3Z_CoefStruct1.min = -0.8;
 	
 	Uout_ref = 0.2;	
-	Vref_165 = 2800;
+	Vref_165 = 2900;
 	
 	SOGI_Init(&sogi);
 	//SOGI_UpdateCoefficients(&sogi);
@@ -241,7 +241,7 @@ void task_m1 ()
 				{
 					//kp = CANmsg.data_u32[0];
 					memcpy(&Vref_165, &CANmsg.data_u32[1], 4);
-					memcpy(&pll.phase_inc, &CANmsg.data_u32[0], 4);
+					memcpy(&pll.phase_base, &CANmsg.data_u32[0], 4);
 				}
 				
 				
@@ -650,7 +650,8 @@ void Timer3_IRQHandler ()
 		pll.phase += pll.phase_inc;
 			
 		DAC2_SetData ((pll.phase >> 20));
-		//	DAC2_SetData ((pll.omega >> 4)+2047);
+		//DAC2_SetData ((pll.omega >> 4)+2047);
+			
 			
 		if(PLL_period-- == 0) {
 			PLL_Run(&pll, sogi.alpha, sogi.beta);
@@ -673,7 +674,7 @@ void Timer3_IRQHandler ()
 		//CNTL_PID  (&CNTL_out, &Uout_ref_sin, &Uout_ADC, &CNTL_PID_CoefStruct1);
 		
 		PIDout_gui = CNTL_out;	
-		PIDout = (int32_t)(CNTL_out * (float) 3900.0);
+		//PIDout = (int32_t)(CNTL_out * (float) 3900.0);
 		//PIDout = (int32_t)(Uout_ref_sin * (float) 3900.0);
 			
 		if (PIDout > 3900) {
