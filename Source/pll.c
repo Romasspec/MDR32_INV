@@ -80,8 +80,8 @@ void PLL_Init(PLL_Q15_t *pll)
 	 * init value
 	 */
 	
-	pll->kp = 50500;
-	pll->ki = 65000;
+	pll->kp = 300768;		//50500; - подбор		//300768 	- расчет
+	pll->ki = 6746;			//65000; - подбор		//6746 		- расчет
 	
 	pll->omega_min = -32768;
 	pll->omega_max = 32767;
@@ -101,7 +101,7 @@ void PLL_Run(PLL_Q15_t *pll, int16_t alpha, int16_t beta)
 	int16_t cos_theta;
 	int16_t uq;
 	int16_t ud;
-	int32_t error;
+	
 	int32_t omega_hz_q15;
 		
 	sin_theta = get_sin_1024(pll->phase >> 22);
@@ -109,14 +109,14 @@ void PLL_Run(PLL_Q15_t *pll, int16_t alpha, int16_t beta)
 	
 	ParkTransform_Q15(alpha, beta, sin_theta, cos_theta, &ud, &uq);
 		
-	error = uq;																// q15
+	pll->error = uq;																// q15
 	
-	omega_hz_q15 = (pll->kp * error) >> 15;		// q15 * q15 = q30 >>15
+	omega_hz_q15 = (pll->kp * pll->error) >> 15;		// q15 * q15 = q30 >>15
 		
 	/*
 	 * PI
 	 */
-	pll->integrator += (pll->ki * error);			// q30 + (q15 * q15) 
+	pll->integrator += (pll->ki * pll->error);			// q30 + (q15 * q15) 
 	
 	 if(pll->integrator >= 1073741823)
 		  pll->integrator =  1073741823;
@@ -128,9 +128,9 @@ void PLL_Run(PLL_Q15_t *pll, int16_t alpha, int16_t beta)
 	 omega_hz_q15 = omega_hz_q15 + (pll->integrator >> 15);
 	// Примем что значение 32768 это частота 1 Гц.
 	// Ограничиваем отклонение частоты в разумных пределах (например, +/- 30 Гц)
-	// 30 Гц в Q15 = 30 * 32768 = 983040
-	if(omega_hz_q15 > 983040)  omega_hz_q15 = 983040;
-	if(omega_hz_q15 < -983040) omega_hz_q15 = -983040;
+	 // 30 Гц в Q15 = 30 * 32768 = 983040/100  100 - коэффициент перехода от выхода pll q15 к фазовому аккумулятору 
+	if(omega_hz_q15 > 32213)  omega_hz_q15 = 32213;			//983040 было, по расчету +/- 15 Гц смещение максимум 32213
+	if(omega_hz_q15 < -32213) omega_hz_q15 = -32213;
 	
 	// Сохраняем для отладки
 	 pll->omega = uq;
@@ -147,6 +147,7 @@ void PLL_Run(PLL_Q15_t *pll, int16_t alpha, int16_t beta)
 	// поэтому коэффициент 6,5536 надо умножить 15 Гц 6,5536 * 15 = 98,34 равно примерно 100
 	
 	int32_t phase_inc_delta = (omega_hz_q15 * 100) ;
+	pll->omega = phase_inc_delta;
 
 	pll->phase_inc = pll->phase_base + phase_inc_delta;
 	 

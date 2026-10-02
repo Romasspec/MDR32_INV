@@ -60,3 +60,29 @@ void CNTL_PID (volatile float* Out, volatile float* Ref, volatile float* Fdbk, C
 //		MDR_TIMER3->CCR1 		= PIDout >> 1;
 }
 
+void CNTL_PID_Q15 (CNTL_PID_Q15_t* pid, CNTL_PID_Q15_Coef_t* pid_coef)
+{
+	int16_t error;
+	int32_t temp;
+	
+	error = pid->ref - pid->fdbk;																// q15 - q15 = q15
+	temp = ((int32_t)pid_coef->kp * error) >> 15;								// q15 * q15 = q30 >> 15
+	
+	pid->integral += ((int32_t)pid_coef->ki * error);						// q30 + (q15 * q15) 
+	
+	if(pid->integral >= pid_coef->integral_max)
+		pid->integral = pid_coef->integral_max;
+
+	if(pid->integral < pid_coef->integral_min) 
+		pid->integral = pid_coef->integral_min;
+	
+	temp += (pid->integral >> 15);															// q15 + (q30 >> 15) = q15
+	
+	if(temp >= pid_coef->out_max)
+		temp = pid_coef->out_max;
+	
+	if(temp < pid_coef->out_min)
+		temp = pid_coef->out_min;
+	
+	pid->out = (int16_t)(temp);
+}

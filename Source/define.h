@@ -4,8 +4,8 @@
 #include <stdint.h>
 
 #define PGN_DEV_RESET					((uint8_t) 0x3E)
-#define PGN_DEV_RUN_FD					((uint8_t) 0x01)
-#define PGN_DEV_RUN_BC					((uint8_t) 0x02)
+#define PGN_DEV_RUN_FD				((uint8_t) 0x01)
+#define PGN_DEV_RUN_BC				((uint8_t) 0x02)
 #define PGN_DEV_Uout					((uint8_t) 0x03)
 #define PGN_DEV_Vref					((uint8_t) 0x04)
 #define PGN_DEV_kp						((uint8_t) 0x05)
@@ -43,6 +43,16 @@
 
 #define T_MAX 	((uint16_t) (F_CPU / F_MIN))				// 1600
 #define T_MIN	((uint16_t) (F_CPU / F_MAX))				// 400
+
+#define ADC_IL_CH					ADC_CH_ADC2
+#define ADC_U400V_CH			ADC_CH_ADC3
+#define ADC_UGRID_CH			ADC_CH_ADC4
+
+#define RELE_COMUT_GRID_PIN				 PORT_Pin_1
+#define RELE_COMUT_GRID_PORT			 MDR_PORTC
+
+#define rele_comut_grid_on()  	(RELE_COMUT_GRID_PORT->RXTX |= RELE_COMUT_GRID_PIN)
+#define rele_comut_grid_off()		(RELE_COMUT_GRID_PORT->RXTX &=~RELE_COMUT_GRID_PIN)
 
 typedef struct
 {
