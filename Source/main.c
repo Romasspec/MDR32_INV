@@ -362,7 +362,7 @@ void task_m1 ()
 				
 				
 				memcpy(&TxMsg.Data[0], &PID_adc_400V.out, 4);
-				memcpy(&TxMsg.Data[1], &pll.omega, 4);
+				memcpy(&TxMsg.Data[1], &pll_avg_error, 4);
 				//memcpy(&TxMsg.Data[1], &pll.kp, 4);
 				
 				
@@ -762,8 +762,12 @@ void Timer3_IRQHandler ()
 			PLL_Run(&pll, sogi_Vin.alpha, sogi_Vin.beta);
 			PLL_period = 9;
 			
-			pll_avg_error = (pll_avg_error + (pll.error >> 5))>>1;
-			//DAC2_SetData (((int16_t)(pll.error)>>1) + 2048);
+			if (pll.error >= 0) {
+				pll_avg_error = pll_avg_error + ((pll.error - pll_avg_error) >> 1);
+			} else {
+				pll_avg_error = pll_avg_error + (((-1) * pll.error - pll_avg_error) >> 1);
+			}
+			DAC2_SetData ((pll_avg_error >> 15) + 2048);
 		
 			PID_adc_400V.fdbk = adc_U400V;
 			CNTL_PID_Q15 (&PID_adc_400V, &coef_PID_adc_400V);
@@ -772,7 +776,7 @@ void Timer3_IRQHandler ()
 		
 //		int16_t sin_test = get_sin_1024(pll.phase >> 22);
 //		DAC2_SetData((sin_test >> 4) + 2048);
-		DAC2_SetData ((pll.phase >> 20));
+//		DAC2_SetData ((pll.phase >> 20));
 
 //		DAC2_SetData ((pll.omega >> 4)+2047);
 //		DAC2_SetData ((sogi_Vin.alpha >> 4) + 2048);
