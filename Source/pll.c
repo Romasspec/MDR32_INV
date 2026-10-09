@@ -49,18 +49,20 @@ int16_t get_cos_1024(uint32_t phase) {
 
 void ParkTransform_Q15(int16_t alpha, int16_t beta, int16_t sin_theta, int16_t cos_theta, int16_t *d, int16_t *q)
 {		
-	int32_t ud;
-	int32_t uq;
+	int64_t ud;
+	int64_t uq;
 	
 //	uq = ( (int32_t)alpha * cos_theta + (int32_t)beta * sin_theta); // в этом варианте Ud стремиться к нулю при совпадении фаз
 //	ud = (-(int32_t)alpha * sin_theta + (int32_t)beta * cos_theta); // uq максимальное отрицательное значение
 	
-	ud = (int32_t)alpha * sin_theta - (int32_t)beta * cos_theta; // в этом варианте Uq стремиться к нулю при совпадении фаз
-	uq = (int32_t)alpha * cos_theta + (int32_t)beta * sin_theta; // ud максимальное положительное значение
+	ud = (int64_t)alpha * sin_theta - (int64_t)beta * cos_theta; // в этом варианте Uq стремиться к нулю при совпадении фаз
+	uq = (int64_t)alpha * cos_theta + (int64_t)beta * sin_theta; // ud максимальное положительное значение
+		
+//	*d = (int16_t)((ud + 16384) >> 15);
+//	*q = (int16_t)((uq + 16384) >> 15);
 	
-	*d = (int16_t)(ud >> 15);
-	*q = (int16_t)(uq >> 15);
-	
+	*d = __ssat((ud + 16384) >> 15, 16);
+	*q = __ssat((uq + 16384) >> 15, 16);
 	//uq = alpha * cos_theta - beta * sin_theta;
 }
 
@@ -80,7 +82,7 @@ void PLL_Init(PLL_Q15_t *pll)
 	 * init value
 	 */
 	
-	pll->kp = 300768;		//50500; - подбор		//300768 	- расчет
+	pll->kp = 30077;		//50500; - подбор		//300768 	- расчет
 	pll->ki = 6746;			//65000; - подбор		//6746 		- расчет
 	
 	pll->omega_min = -32768;
@@ -95,28 +97,28 @@ void PLL_Init(PLL_Q15_t *pll)
 	pll->phase 		 = 0;
 }
 
-void PLL_Run(PLL_Q15_t *pll, int16_t alpha, int16_t beta)
+void PLL_Run(PLL_Q15_t *pll)
 {
-	int16_t sin_theta;
-	int16_t cos_theta;
-	int16_t uq;
-	int16_t ud;
+//	int16_t sin_theta;
+//	int16_t cos_theta;
+//	int16_t uq;
+//	int16_t ud;
 	
 	int32_t omega_hz_q15;
 		
-	sin_theta = get_sin_1024(pll->phase >> 22);
-	cos_theta = get_cos_1024(pll->phase >> 22);	
-	
-	ParkTransform_Q15(alpha, beta, sin_theta, cos_theta, &ud, &uq);
+//	sin_theta = get_sin_1024(pll->phase >> 22);
+//	cos_theta = get_cos_1024(pll->phase >> 22);	
+//	
+//	ParkTransform_Q15(alpha, beta, sin_theta, cos_theta, &ud, &uq);
 		
-	pll->error = uq;																// q15
+//	pll->error = uq;																			// q15
 	
-	omega_hz_q15 = (pll->kp * pll->error) >> 15;		// q15 * q15 = q30 >>15
+	omega_hz_q15 = (pll->kp * pll->error + 16384) >> 15;		// q15 * q15 = q30 >>15
 		
 	/*
 	 * PI
 	 */
-	pll->integrator += (pll->ki * pll->error);			// q30 + (q15 * q15) 
+	pll->integrator += (pll->ki * pll->error);							// q30 + (q15 * q15) 
 	
 	 if(pll->integrator >= 1073741823)
 		  pll->integrator =  1073741823;
@@ -125,7 +127,7 @@ void PLL_Run(PLL_Q15_t *pll, int16_t alpha, int16_t beta)
 		  pll->integrator = -1073741824;	
 	 
 	 
-	 omega_hz_q15 = omega_hz_q15 + (pll->integrator >> 15);
+	 omega_hz_q15 = omega_hz_q15 + ((pll->integrator + 16384) >> 15);
 	// Примем что значение 32768 это частота 1 Гц.
 	// Ограничиваем отклонение частоты в разумных пределах (например, +/- 30 Гц)
 	 // 30 Гц в Q15 = 30 * 32768 = 983040/100  100 - коэффициент перехода от выхода pll q15 к фазовому аккумулятору 
@@ -133,7 +135,7 @@ void PLL_Run(PLL_Q15_t *pll, int16_t alpha, int16_t beta)
 	if(omega_hz_q15 < -32213) omega_hz_q15 = -32213;
 	
 	// Сохраняем для отладки
-	 pll->omega = uq;
+	 pll->omega = pll->error;
 	
 	// 6. Масштабирование отклонения частоты (Гц в Q15) в шаг фазы (uint32_t)
 	// Нам нужно умножить omega_hz_q15 на коэффициент (2^32 / (20000 * 32768)) = 6.5536

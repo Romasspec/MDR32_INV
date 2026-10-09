@@ -105,6 +105,7 @@ volatile float Uout_ref;
 volatile float Uout_ref_sin;
 //volatile float CNTL_out;
 int32_t Vref_165;
+int32_t Vref_IL165;
 volatile float Uerr;
 float sinus_ref[STEP_SINUS];
 float Kdc;
@@ -115,7 +116,7 @@ CNTL_PID_CoefStruct 	CNTL_PID_CoefStruct1;
 SOGI_Q15_t sogi_Vin;					//sogi входного напряжения
 SOGI_Q15_t sogi_IL;						//sogi входного тока дросселя
 PLL_Q15_t pll;
-int32_t pll_avg_error;
+int32_t pll_avg_error_gui;
 
 int16_t ILd_ref;
 
@@ -127,6 +128,9 @@ CNTL_PID_Q15_t	PID_adc_ILd;
 
 CNTL_PID_Q15_Coef_t coef_PID_adc_ILq;
 CNTL_PID_Q15_t	PID_adc_ILq;
+
+	int16_t ILd;
+	int16_t ILq;
 
 int main (void)
 {
@@ -184,9 +188,10 @@ int main (void)
 	
 	Uout_ref = 0.2;	
 	Vref_165 = 2000;
+	Vref_IL165 = 1930;
 	
 	SOGI_Init(&sogi_Vin);
-//	SOGI_Init(&sogi_IL);
+	SOGI_Init(&sogi_IL);
 	//SOGI_UpdateCoefficients(&sogi);	
 	
 	PLL_Init(&pll);	
@@ -203,7 +208,7 @@ int main (void)
 	coef_PID_adc_400V.integral_min	= -1073741824;
 	coef_PID_adc_400V.kd						= 0;
 	coef_PID_adc_400V.out_max				= 32767;
-	coef_PID_adc_400V.out_min				= 0;
+	coef_PID_adc_400V.out_min				= -32768;
 
 
 //******************* PI ILd *****************
@@ -212,13 +217,13 @@ int main (void)
 	PID_adc_ILd.integral						= 0;
 	PID_adc_ILd.debug								= 0;
 	
-	coef_PID_adc_ILd.kp							= 20000;
-	coef_PID_adc_ILd.ki							= 5000;
+	coef_PID_adc_ILd.kp							= 0;//1000;
+	coef_PID_adc_ILd.ki							= 0;//50;
 	coef_PID_adc_ILd.integral_max		= 1073741823;
 	coef_PID_adc_ILd.integral_min		= -1073741824;
 	coef_PID_adc_ILd.kd							= 0;
-	coef_PID_adc_ILd.out_max				= 32767;
-	coef_PID_adc_ILd.out_min				= -32768;
+	coef_PID_adc_ILd.out_max				= 32700;
+	coef_PID_adc_ILd.out_min				= -32700;
 	
 	
 	//******************* PI ILq *****************
@@ -227,13 +232,13 @@ int main (void)
 	PID_adc_ILq.integral						= 0;
 	PID_adc_ILq.debug								= 0;
 	
-	coef_PID_adc_ILq.kp							= 20000;
-	coef_PID_adc_ILq.ki							= 5000;
+	coef_PID_adc_ILq.kp							= 1000;
+	coef_PID_adc_ILq.ki							= 50;
 	coef_PID_adc_ILq.integral_max		= 1073741823;
 	coef_PID_adc_ILq.integral_min		= -1073741824;
 	coef_PID_adc_ILq.kd							= 0;
-	coef_PID_adc_ILq.out_max				= 32767;
-	coef_PID_adc_ILq.out_min				= -32768;
+	coef_PID_adc_ILq.out_max				= 32700;
+	coef_PID_adc_ILq.out_min				= -32700;
 	
 	task_m = &task_m1;
 //	set_Fnom ();
@@ -303,8 +308,11 @@ void task_m1 ()
 				if (CANmsg.pf == PGN_DEV_Vref)							// 0x04
 				{
 					//kp = CANmsg.data_u32[0];
-					memcpy(&Vref_165, &CANmsg.data_u32[1], 4);
-					memcpy(&pll.phase_base, &CANmsg.data_u32[0], 4);
+					//memcpy(&Vref_165, &CANmsg.data_u32[1], 4);
+					//memcpy(&pll.phase_base, &CANmsg.data_u32[0], 4);
+					
+					//memcpy(&Vref_IL165, 			&CANmsg.data_u32[1], 4);
+					memcpy(&PID_adc_400V.ref, &CANmsg.data_u32[0], 4);
 				}
 				
 				
@@ -312,14 +320,20 @@ void task_m1 ()
 				{
 					//kp = CANmsg.data_u32[0];
 					//memcpy(&CNTL_PID_CoefStruct1.kp, &CANmsg.data_u32[0], 4);
-					memcpy(&pll.kp, &CANmsg.data_u32[0], 4);
+					//memcpy(&pll.kp, &CANmsg.data_u32[0], 4);
+					memcpy(&coef_PID_adc_ILd.kp, &CANmsg.data_u32[0], 4);
+//					PID_adc_ILd.integral						= 0;
+//					PID_adc_ILq.integral						= 0;
 				}
 				
 				if (CANmsg.pf == PGN_DEV_ki)							// 0x06
 				{
 					//ki = CANmsg.data_u32[0];
 					//memcpy(&CNTL_PID_CoefStruct1.ki, &CANmsg.data_u32[0], 4);
-						memcpy(&pll.ki, &CANmsg.data_u32[0], 4);					
+					//memcpy(&pll.ki, &CANmsg.data_u32[0], 4);
+					memcpy(&coef_PID_adc_ILd.ki, &CANmsg.data_u32[0], 4);
+//					PID_adc_ILd.integral						= 0;
+//					PID_adc_ILq.integral						= 0;					
 				}
 			}
 			
@@ -361,8 +375,8 @@ void task_m1 ()
 				//TxMsg.Data[1]	= PIDout_gui;
 				
 				
-				memcpy(&TxMsg.Data[0], &PID_adc_400V.out, 4);
-				memcpy(&TxMsg.Data[1], &pll_avg_error, 4);
+				memcpy(&TxMsg.Data[0], &pll_avg_error_gui, 4);
+				memcpy(&TxMsg.Data[1], &ILq, 4);
 				//memcpy(&TxMsg.Data[1], &pll.kp, 4);
 				
 				
@@ -394,15 +408,15 @@ void task_m2 ()
 	{
 		timer_1ms[1] = 0;
 		
-		if(pll_avg_error < 300 && pll_avg_error > -300) {
+		if(pll_avg_error_gui < 300 && pll_avg_error_gui > -300) {
 			cnt_synchro_grid++;
 			if (cnt_synchro_grid > 30) {
 				cnt_synchro_grid = 30;				
-				rele_comut_grid_on();
+				//rele_comut_grid_on();
 			}
 		} else {
 			cnt_synchro_grid = 0;
-			rele_comut_grid_off(); 
+			//rele_comut_grid_off(); 
 		}
 		
 	}
@@ -712,11 +726,18 @@ void Timer3_IRQHandler ()
 {
 	static volatile uint16_t i = 0;
 	static volatile uint16_t PLL_period = 9;
+	static int32_t	pll_avg_uq = 0;
+	const int32_t PWM_MAX = 3900;
+	
+	int16_t uin_sin_theta;
+	int16_t uin_cos_theta;
+	int16_t uind;
+	int16_t uinq;
 	
 	int16_t IL_sin_theta;
 	int16_t IL_cos_theta;
-	int16_t ILd;
-	int16_t ILq;
+//	int16_t ILd;
+//	int16_t ILq;
 	int16_t out_pwm;
 	
 	if (MDR_TIMER3->STATUS & TIMER_STATUS_CNT_ZERO)
@@ -729,11 +750,13 @@ void Timer3_IRQHandler ()
 		MDR_ADC->ADC1_CFG |= ADC1_CFG_REG_GO;				
 		while ((MDR_ADC->ADC1_STATUS & ADC1_FLAG_END_OF_CONVERSION) == 0) {}
 		int32_t adc_Ugrid = ((int32_t)(MDR_ADC->ADC1_RESULT & 0xFFF) - Vref_165)<<4;
+		__ssat(adc_Ugrid, 16);
 		
 		ADC_set_CH (ADC_IL_CH);
 		MDR_ADC->ADC1_CFG |= ADC1_CFG_REG_GO;				
 		while ((MDR_ADC->ADC1_STATUS & ADC1_FLAG_END_OF_CONVERSION) == 0) {}
-		int32_t adc_IL = ((int32_t)(MDR_ADC->ADC1_RESULT & 0xFFF) - Vref_165)<<4;
+		int32_t adc_IL = ((int32_t)(MDR_ADC->ADC1_RESULT & 0xFFF) - Vref_IL165)<<4;
+			__ssat(adc_IL, 16);
 //		int32_t adc_IL = ((int32_t)(MDR_ADC->ADC1_RESULT & 0xFFF));
 			
 		ADC_set_CH (ADC_U400V_CH);
@@ -741,6 +764,7 @@ void Timer3_IRQHandler ()
 		while ((MDR_ADC->ADC1_STATUS & ADC1_FLAG_END_OF_CONVERSION) == 0) {}
 		//int32_t adc_U400V = ((int32_t)(MDR_ADC->ADC1_RESULT & 0xFFF) - Vref_165)<<4;
 			int16_t adc_U400V = ((int16_t)(MDR_ADC->ADC1_RESULT & 0xFFF)<<3);
+			__ssat(adc_U400V, 16);
 
 		
 //		pll.omega = adc_IL;
@@ -757,47 +781,70 @@ void Timer3_IRQHandler ()
 			pll.phase += pll.phase_inc;
 			
 			SOGI_Run(&sogi_Vin, adc_Ugrid);
+			uin_sin_theta = get_sin_1024((pll.phase + (1<<21)) >> 22);
+			uin_cos_theta = get_cos_1024((pll.phase + (1<<21)) >> 22);	
+	
+			ParkTransform_Q15(sogi_Vin.alpha, sogi_Vin.beta, uin_sin_theta, uin_cos_theta, &uind, &uinq);			
 			
-		if(PLL_period-- == 0) {
-			PLL_Run(&pll, sogi_Vin.alpha, sogi_Vin.beta);
-			PLL_period = 9;
+			pll_avg_uq += uinq;			
 			
-			if (pll.error >= 0) {
-				pll_avg_error = pll_avg_error + ((pll.error - pll_avg_error) >> 1);
-			} else {
-				pll_avg_error = pll_avg_error + (((-1) * pll.error - pll_avg_error) >> 1);
-			}
-			DAC2_SetData ((pll_avg_error >> 15) + 2048);
-		
-			PID_adc_400V.fdbk = adc_U400V;
-			CNTL_PID_Q15 (&PID_adc_400V, &coef_PID_adc_400V);
+			if(PLL_period-- == 0) {
+				pll_avg_error_gui = pll_avg_uq/10;
+				pll.error = pll_avg_error_gui;//(int16_t)(pll_avg_uq/10);
+				PLL_Run(&pll);
+				pll_avg_uq = 0;
+				PLL_period = 9;
+//				if (pll.error >= 0) {
+//					pll_avg_error = pll_avg_error + ((pll.error - pll_avg_error) >> 1);
+//				} else {
+//					pll_avg_error = pll_avg_error + (((-1) * pll.error - pll_avg_error) >> 1);
+//				}
+//				DAC2_SetData ((pll_avg_error_gui >> 15) + 2048);
+			
+				PID_adc_400V.fdbk = adc_U400V;
+				CNTL_PID_Q15 (&PID_adc_400V, &coef_PID_adc_400V);
 //			DAC2_SetData ((PID_adc_400V.out >> 4) + 2048);
-		}
+			}
 		
 //		int16_t sin_test = get_sin_1024(pll.phase >> 22);
 //		DAC2_SetData((sin_test >> 4) + 2048);
-//		DAC2_SetData ((pll.phase >> 20));
+//		DAC2_SetData ((pll.phase + (1<<19)) >> 20);
 
 //		DAC2_SetData ((pll.omega >> 4)+2047);
 //		DAC2_SetData ((sogi_Vin.alpha >> 4) + 2048);
 //		DAC2_SetData ((sogi_Vin.beta >> 4) + 2047);	
 		
 		SOGI_Run(&sogi_IL, adc_IL);
-		IL_sin_theta = get_sin_1024(pll.phase >> 22);
-		IL_cos_theta = get_cos_1024(pll.phase >> 22);
+
+//		IL_sin_theta = get_sin_1024(pll.phase >> 22);
+//		IL_cos_theta = get_cos_1024(pll.phase >> 22);
+			IL_sin_theta = uin_sin_theta;
+			IL_cos_theta = uin_cos_theta;
+			
 		ParkTransform_Q15(sogi_IL.alpha, sogi_IL.beta, IL_sin_theta, IL_cos_theta, &ILd, &ILq);
+//			ParkTransform_Q15(0, 0, IL_sin_theta, IL_cos_theta, &ILd, &ILq);
 		
-		PID_adc_ILd.ref = PID_adc_400V.out;
+//		DAC2_SetData ((ILd >> 4) + 2048);
+			
+			
+//		DAC2_SetData ((sogi_IL.alpha >> 5) + 2048);	
+			
+//		PID_adc_ILd.ref = PID_adc_400V.out;
+		PID_adc_ILd.ref = PID_adc_400V.ref;
 		PID_adc_ILd.fdbk = ILd;
 		CNTL_PID_Q15 (&PID_adc_ILd, &coef_PID_adc_ILd);
 		
 		PID_adc_ILq.ref	= 0;
 		PID_adc_ILq.fdbk = ILq;
-		CNTL_PID_Q15 (&PID_adc_ILq, &coef_PID_adc_ILq);
+		CNTL_PID_Q15 (&PID_adc_ILq, &coef_PID_adc_ILd); // ! КОЭФФИЦИЕНТЫ КАК Id
 		
-		reversParkTransform_Q15(PID_adc_ILd.out, PID_adc_ILq.out, IL_sin_theta, IL_cos_theta, &out_pwm);
+		reversParkTransform_Q15(PID_adc_ILd.out, 0, IL_sin_theta, IL_cos_theta, &out_pwm);
+		
+		
+		DAC2_SetData ((out_pwm >> 5) + 2048);
+//		reversParkTransform_Q15(coef_PID_adc_ILd.kp, coef_PID_adc_ILd.ki, IL_sin_theta, IL_cos_theta, &out_pwm);
 
-//		DAC2_SetData ((PID_adc_IL.out >> 4) + 2048);
+//		DAC2_SetData ((ILd >> 4) + 2048);
 					
 		//CNTL_3P3Z (&CNTL_out, &Uout_ref_sin, &Uout_ADC, &CNTL_3P3Z_CoefStruct1);
 		//CNTL_PID  (&CNTL_out, &Uout_ref_sin, &Uout_ADC, &CNTL_PID_CoefStruct1);
@@ -808,21 +855,23 @@ void Timer3_IRQHandler ()
 		//PIDout = (int32_t)(CNTL_out * (float) 3900.0);
 		//PIDout = (int32_t)(Uout_ref_sin * (float) 3900.0);
 		
-		PIDout	= ((int32_t)out_pwm * (int16_t)3900) >> 15;
+		PIDout	= (out_pwm * PWM_MAX + 16384) >> 15;
 		
-		if (PIDout > 3900) {
-			PIDout = 3900;
-		}		
-		if (PIDout < -3900) {
-			PIDout = -3900;
-		}	
+//		if (PIDout > 3900) {
+//			PIDout = 3900;
+//		}		
+//		if (PIDout < -3900) {
+//			PIDout = -3900;
+//		}	
 		
 		if (PIDout >= 0 ) {
-			MDR_TIMER3->CCR1 = PIDout;
+			MDR_TIMER3->CCR1 = PIDout & 0xFFF;
 			MDR_TIMER3->CCR2 = 0;
-		} else {
+			//DAC2_SetData ((PIDout >> 1) & 0xFFF);
+		}		
+		else {
 			MDR_TIMER3->CCR1 = 0;
-			MDR_TIMER3->CCR2 = PIDout * (-1);			
+			MDR_TIMER3->CCR2 = (0-PIDout) & 0xFFF;			
 		}
 		
 //		if (PIDout >= 0 ) {
@@ -849,11 +898,18 @@ static inline void ADC_set_CH(uint32_t Channel)
 
 static inline void reversParkTransform_Q15(int16_t d, int16_t q, int16_t sin_theta, int16_t cos_theta, int16_t* out)
 {		
-	int32_t temp;
+	int64_t temp;
 	
-	temp = (int32_t)d * sin_theta + (int32_t)q * cos_theta;
-	//temp = (int32_t)d * cos_theta - (int32_t)q * sin_theta;
-	*out = (int16_t) (temp >> 15);
+	temp = (int64_t)d * sin_theta + (int64_t)q * cos_theta;
+	//temp = (int32_t)d * cos_theta - (int32_t)q * sin_theta; // для текущего преобразования парка, это обратное
+	//*out = (int16_t) (temp >> 15);
+	
+	*out = __ssat((temp + 16384) >> 15, 16);
+//	if(*out > 32767)
+//		*out = 32767;
+//	
+//	if(*out < -32768)
+//		*out= -32768;
 	
 //	uq = ( (int32_t)alpha * cos_theta + (int32_t)beta * sin_theta); // в этом варианте Ud стремиться к нулю при совпадении фаз
 //	ud = (-(int32_t)alpha * sin_theta + (int32_t)beta * cos_theta); // uq максимальное отрицательное значение

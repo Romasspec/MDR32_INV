@@ -24,6 +24,8 @@ typedef struct
 	int32_t integral_min;
 	int16_t out_max;
 	int16_t out_min;
+	
+	int32_t debug;
 } CNTL_PID_Q15_Coef_t;
 
 

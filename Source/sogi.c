@@ -60,8 +60,8 @@ void SOGI_UpdateCoefficients (SOGI_Q15_t *s) {
 }
 static inline int32_t sat_q15(int64_t x)
 {
-	if(x > 32768)
-		return 32768;
+	if(x > 32767)
+		return 32767;
 	
 	if(x < -32768)
 		return -32768;
@@ -94,18 +94,18 @@ void SOGI_Init(SOGI_Q15_t *s) {
 	s->bQ1 = 185268;
 	s->bQ2 = 92634;
 	
-	s->a1	 = 2123632557;
-	s->a2	 = -1050152742;
+	s->a1	 = -2123632557;
+	s->a2	 = 1050152742;
 	
 //	SOGI_UpdateCoefficients (s);
 }
 
-void SOGI_Run(SOGI_Q15_t *s, int16_t u) {
+void SOGI_Run(SOGI_Q15_t *s, int32_t u) {
 	int64_t alpha;
 	int64_t beta;
-	int32_t u_q30;
+	int64_t u_q30;
 	
-	u_q30 = u << 15;
+	u_q30 = (int64_t)u << 15;
 	
 	/*
 	 * Alpha channel
@@ -114,10 +114,10 @@ void SOGI_Run(SOGI_Q15_t *s, int16_t u) {
 				  (int64_t)s->bD0 * u_q30
 				+ (int64_t)s->bD1 * s->u_z1
 				+ (int64_t)s->bD2 * s->u_z2
-				+ (int64_t)s->a1  * s->alpha_z1
-				+ (int64_t)s->a2  * s->alpha_z2;
+				- (int64_t)s->a1  * s->alpha_z1
+				- (int64_t)s->a2  * s->alpha_z2;
 	
-	alpha >>= 30;
+	alpha = (alpha + 536870912) >> 30;
 	
 	/*
 	 * Beta channel
@@ -126,16 +126,18 @@ void SOGI_Run(SOGI_Q15_t *s, int16_t u) {
 				  (int64_t)s->bQ0 * u_q30
 				+ (int64_t)s->bQ1 * s->u_z1
 				+ (int64_t)s->bQ2 * s->u_z2
-				+ (int64_t)s->a1  * s->beta_z1
-				+ (int64_t)s->a2  * s->beta_z2;
+				- (int64_t)s->a1  * s->beta_z1
+				- (int64_t)s->a2  * s->beta_z2;
 				
-			beta >>= 30;
+			beta = (beta + 536870912) >> 30;
 					
 	 /*
 	 *  Saturation and Outputs
 	 */	
-		s->alpha 	= sat_q15(alpha>>15);
-		s->beta 	= sat_q15(beta>>15);
+		//s->alpha 	= sat_q15((alpha + 16384) >> 15);
+		//s->beta 	= sat_q15((beta  + 16384) >> 15);
+		s->alpha = __ssat((alpha + 16384) >> 15, 16);
+		s->beta	 = __ssat((beta	 + 16384) >> 15, 16);
 				
 	/*
 	 * Update state
@@ -144,8 +146,8 @@ void SOGI_Run(SOGI_Q15_t *s, int16_t u) {
 	 s->u_z1 = u_q30;
 	 
 	 s->alpha_z2 = s->alpha_z1;
-	 s->alpha_z1 = alpha;
+	 s->alpha_z1 = (int32_t)alpha;
 	 
 	 s->beta_z2 = s->beta_z1;
-	 s->beta_z1 = beta;	 
+	 s->beta_z1 = (int32_t)beta;	 
 }
