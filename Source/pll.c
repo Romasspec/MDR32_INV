@@ -61,8 +61,8 @@ void ParkTransform_Q15(int16_t alpha, int16_t beta, int16_t sin_theta, int16_t c
 //	*d = (int16_t)((ud + 16384) >> 15);
 //	*q = (int16_t)((uq + 16384) >> 15);
 	
-	*d = __ssat((ud + 16384) >> 15, 16);
-	*q = __ssat((uq + 16384) >> 15, 16);
+	*d = (int16_t)__ssat((ud + 16384) >> 15, 16);
+	*q = (int16_t)__ssat((uq + 16384) >> 15, 16);
 	//uq = alpha * cos_theta - beta * sin_theta;
 }
 

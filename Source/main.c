@@ -200,45 +200,48 @@ int main (void)
 	PID_adc_400V.ref 								= (long) (0.5 * 32768.0L);
 	PID_adc_400V.fdbk								= PID_adc_400V.ref;
 	PID_adc_400V.integral						= 0;
-	PID_adc_400V.debug							= 0;
+	PID_adc_400V.debug1							= 0;
+	PID_adc_400V.debug2							= 0;
 	
 	coef_PID_adc_400V.kp						= 3276;
 	coef_PID_adc_400V.ki						= 1000;
-	coef_PID_adc_400V.integral_max	= 1073741823;
-	coef_PID_adc_400V.integral_min	= -1073741824;
+	coef_PID_adc_400V.integral_max	= 1071513600;//1073741823;
+	coef_PID_adc_400V.integral_min	= -1071513600;//-1073741824;
 	coef_PID_adc_400V.kd						= 0;
 	coef_PID_adc_400V.out_max				= 32767;
-	coef_PID_adc_400V.out_min				= -32768;
+	coef_PID_adc_400V.out_min				= -16000;
 
 
 //******************* PI ILd *****************
 	PID_adc_ILd.ref 								= 0;
 	PID_adc_ILd.fdbk								= 0;
 	PID_adc_ILd.integral						= 0;
-	PID_adc_ILd.debug								= 0;
+	PID_adc_ILd.debug1							= 0;
+	PID_adc_ILd.debug2							= 0;
 	
-	coef_PID_adc_ILd.kp							= 0;//1000;
-	coef_PID_adc_ILd.ki							= 0;//50;
-	coef_PID_adc_ILd.integral_max		= 1073741823;
-	coef_PID_adc_ILd.integral_min		= -1073741824;
+	coef_PID_adc_ILd.kp							= 20480;//1000;
+	coef_PID_adc_ILd.ki							= 22;//50;
+	coef_PID_adc_ILd.integral_max		= 1071513600;//1073741823;
+	coef_PID_adc_ILd.integral_min		= -1071513600;//-1073741824;
 	coef_PID_adc_ILd.kd							= 0;
-	coef_PID_adc_ILd.out_max				= 32700;
-	coef_PID_adc_ILd.out_min				= -32700;
+	coef_PID_adc_ILd.out_max				= 32705;
+	coef_PID_adc_ILd.out_min				= -32705;
 	
 	
 	//******************* PI ILq *****************
 	PID_adc_ILq.ref 								= 0;
 	PID_adc_ILq.fdbk								= 0;
 	PID_adc_ILq.integral						= 0;
-	PID_adc_ILq.debug								= 0;
+	PID_adc_ILq.debug1							= 0;
+	PID_adc_ILq.debug2							= 0;
 	
 	coef_PID_adc_ILq.kp							= 1000;
 	coef_PID_adc_ILq.ki							= 50;
-	coef_PID_adc_ILq.integral_max		= 1073741823;
-	coef_PID_adc_ILq.integral_min		= -1073741824;
+	coef_PID_adc_ILq.integral_max		= 1071513600;//1073741823;
+	coef_PID_adc_ILq.integral_min		= -1071513600;//-1073741824;
 	coef_PID_adc_ILq.kd							= 0;
-	coef_PID_adc_ILq.out_max				= 32700;
-	coef_PID_adc_ILq.out_min				= -32700;
+	coef_PID_adc_ILq.out_max				= 32705;
+	coef_PID_adc_ILq.out_min				= -32705;
 	
 	task_m = &task_m1;
 //	set_Fnom ();
@@ -332,7 +335,7 @@ void task_m1 ()
 					//memcpy(&CNTL_PID_CoefStruct1.ki, &CANmsg.data_u32[0], 4);
 					//memcpy(&pll.ki, &CANmsg.data_u32[0], 4);
 					memcpy(&coef_PID_adc_ILd.ki, &CANmsg.data_u32[0], 4);
-//					PID_adc_ILd.integral						= 0;
+					PID_adc_ILd.integral						= 0;
 //					PID_adc_ILq.integral						= 0;					
 				}
 			}
@@ -375,8 +378,8 @@ void task_m1 ()
 				//TxMsg.Data[1]	= PIDout_gui;
 				
 				
-				memcpy(&TxMsg.Data[0], &pll_avg_error_gui, 4);
-				memcpy(&TxMsg.Data[1], &ILq, 4);
+				memcpy(&TxMsg.Data[0], &PID_adc_ILd.debug1, 4);
+				memcpy(&TxMsg.Data[1], &PID_adc_ILd.debug2, 4);
 				//memcpy(&TxMsg.Data[1], &pll.kp, 4);
 				
 				
@@ -739,43 +742,32 @@ void Timer3_IRQHandler ()
 //	int16_t ILd;
 //	int16_t ILq;
 	int16_t out_pwm;
+	int32_t temp;
 	
 	if (MDR_TIMER3->STATUS & TIMER_STATUS_CNT_ZERO)
 	{
-		MDR_TIMER3->STATUS &=~TIMER_STATUS_CNT_ZERO;
-		VCNTTimer++;
-		
-		MDR_PORTD->RXTX |= (1<<PD6);
-		ADC_set_CH (ADC_UGRID_CH);
-		MDR_ADC->ADC1_CFG |= ADC1_CFG_REG_GO;				
-		while ((MDR_ADC->ADC1_STATUS & ADC1_FLAG_END_OF_CONVERSION) == 0) {}
-		int32_t adc_Ugrid = ((int32_t)(MDR_ADC->ADC1_RESULT & 0xFFF) - Vref_165)<<4;
-		__ssat(adc_Ugrid, 16);
-		
-		ADC_set_CH (ADC_IL_CH);
-		MDR_ADC->ADC1_CFG |= ADC1_CFG_REG_GO;				
-		while ((MDR_ADC->ADC1_STATUS & ADC1_FLAG_END_OF_CONVERSION) == 0) {}
-		int32_t adc_IL = ((int32_t)(MDR_ADC->ADC1_RESULT & 0xFFF) - Vref_IL165)<<4;
-			__ssat(adc_IL, 16);
-//		int32_t adc_IL = ((int32_t)(MDR_ADC->ADC1_RESULT & 0xFFF));
+			MDR_TIMER3->STATUS &=~TIMER_STATUS_CNT_ZERO;
+			VCNTTimer++;
 			
-		ADC_set_CH (ADC_U400V_CH);
-		MDR_ADC->ADC1_CFG |= ADC1_CFG_REG_GO;				
-		while ((MDR_ADC->ADC1_STATUS & ADC1_FLAG_END_OF_CONVERSION) == 0) {}
-		//int32_t adc_U400V = ((int32_t)(MDR_ADC->ADC1_RESULT & 0xFFF) - Vref_165)<<4;
+			MDR_PORTD->RXTX |= (1<<PD6);
+			ADC_set_CH (ADC_UGRID_CH);
+			MDR_ADC->ADC1_CFG |= ADC1_CFG_REG_GO;				
+			while ((MDR_ADC->ADC1_STATUS & ADC1_FLAG_END_OF_CONVERSION) == 0) {}
+			int32_t adc_Ugrid = ((int32_t)(MDR_ADC->ADC1_RESULT & 0xFFF) - Vref_165)<<4;
+			adc_Ugrid = __ssat(adc_Ugrid, 16);
+			
+			ADC_set_CH (ADC_IL_CH);
+			MDR_ADC->ADC1_CFG |= ADC1_CFG_REG_GO;				
+			while ((MDR_ADC->ADC1_STATUS & ADC1_FLAG_END_OF_CONVERSION) == 0) {}
+			int32_t adc_IL = ((int32_t)(MDR_ADC->ADC1_RESULT & 0xFFF) - Vref_IL165)<<4;
+			adc_IL = __ssat(adc_IL, 16);
+				
+			ADC_set_CH (ADC_U400V_CH);
+			MDR_ADC->ADC1_CFG |= ADC1_CFG_REG_GO;				
+			while ((MDR_ADC->ADC1_STATUS & ADC1_FLAG_END_OF_CONVERSION) == 0) {}
 			int16_t adc_U400V = ((int16_t)(MDR_ADC->ADC1_RESULT & 0xFFF)<<3);
-			__ssat(adc_U400V, 16);
-
-		
-//		pll.omega = adc_IL;
+			adc_U400V =__ssat(adc_U400V, 16);
 			
-		//Uout_ADC = (float) ((int32_t)(MDR_ADC->ADC1_RESULT & 0xFFF) - Vref_165)/(float)2047.0;
-		//Uout_ADC = 0.3;
-		
-//	adc_U400V	= ((int32_t)(MDR_ADC->ADC1_RESULT & 0xFFF) - Vref_165)<<4;
-			
-		
-
 //		SOGI_UpdateCoefficients(&sogi);
 			
 			pll.phase += pll.phase_inc;
@@ -789,32 +781,16 @@ void Timer3_IRQHandler ()
 			pll_avg_uq += uinq;			
 			
 			if(PLL_period-- == 0) {
-				pll_avg_error_gui = pll_avg_uq/10;
-				pll.error = pll_avg_error_gui;//(int16_t)(pll_avg_uq/10);
+				pll.error = pll_avg_uq/10;
 				PLL_Run(&pll);
 				pll_avg_uq = 0;
 				PLL_period = 9;
-//				if (pll.error >= 0) {
-//					pll_avg_error = pll_avg_error + ((pll.error - pll_avg_error) >> 1);
-//				} else {
-//					pll_avg_error = pll_avg_error + (((-1) * pll.error - pll_avg_error) >> 1);
-//				}
-//				DAC2_SetData ((pll_avg_error_gui >> 15) + 2048);
 			
 				PID_adc_400V.fdbk = adc_U400V;
 				CNTL_PID_Q15 (&PID_adc_400V, &coef_PID_adc_400V);
-//			DAC2_SetData ((PID_adc_400V.out >> 4) + 2048);
 			}
 		
-//		int16_t sin_test = get_sin_1024(pll.phase >> 22);
-//		DAC2_SetData((sin_test >> 4) + 2048);
-//		DAC2_SetData ((pll.phase + (1<<19)) >> 20);
-
-//		DAC2_SetData ((pll.omega >> 4)+2047);
-//		DAC2_SetData ((sogi_Vin.alpha >> 4) + 2048);
-//		DAC2_SetData ((sogi_Vin.beta >> 4) + 2047);	
-		
-		SOGI_Run(&sogi_IL, adc_IL);
+			SOGI_Run(&sogi_IL, adc_IL);
 
 //		IL_sin_theta = get_sin_1024(pll.phase >> 22);
 //		IL_cos_theta = get_cos_1024(pll.phase >> 22);
@@ -822,15 +798,9 @@ void Timer3_IRQHandler ()
 			IL_cos_theta = uin_cos_theta;
 			
 		ParkTransform_Q15(sogi_IL.alpha, sogi_IL.beta, IL_sin_theta, IL_cos_theta, &ILd, &ILq);
-//			ParkTransform_Q15(0, 0, IL_sin_theta, IL_cos_theta, &ILd, &ILq);
-		
-//		DAC2_SetData ((ILd >> 4) + 2048);
 			
-			
-//		DAC2_SetData ((sogi_IL.alpha >> 5) + 2048);	
-			
-//		PID_adc_ILd.ref = PID_adc_400V.out;
-		PID_adc_ILd.ref = PID_adc_400V.ref;
+	PID_adc_ILd.ref = -PID_adc_400V.out;
+//		PID_adc_ILd.ref = PID_adc_400V.ref;
 		PID_adc_ILd.fdbk = ILd;
 		CNTL_PID_Q15 (&PID_adc_ILd, &coef_PID_adc_ILd);
 		
@@ -838,22 +808,17 @@ void Timer3_IRQHandler ()
 		PID_adc_ILq.fdbk = ILq;
 		CNTL_PID_Q15 (&PID_adc_ILq, &coef_PID_adc_ILd); // ! КОЭФФИЦИЕНТЫ КАК Id
 		
-		reversParkTransform_Q15(PID_adc_ILd.out, 0, IL_sin_theta, IL_cos_theta, &out_pwm);
+		temp = (((int32_t)uind * 179)>>6) + (int32_t)PID_adc_ILd.out;				//	179/64 = 2.8
+		temp = __ssat (temp,16);
+			
+		reversParkTransform_Q15((int16_t)temp, PID_adc_ILq.out, IL_sin_theta, IL_cos_theta, &out_pwm);
+			//reversParkTransform_Q15(PID_adc_ILd.out, 0, IL_sin_theta, IL_cos_theta, &out_pwm);
+		pll_avg_error_gui = uind;
 		
-		
-		DAC2_SetData ((out_pwm >> 5) + 2048);
-//		reversParkTransform_Q15(coef_PID_adc_ILd.kp, coef_PID_adc_ILd.ki, IL_sin_theta, IL_cos_theta, &out_pwm);
-
-//		DAC2_SetData ((ILd >> 4) + 2048);
-					
-		//CNTL_3P3Z (&CNTL_out, &Uout_ref_sin, &Uout_ADC, &CNTL_3P3Z_CoefStruct1);
-		//CNTL_PID  (&CNTL_out, &Uout_ref_sin, &Uout_ADC, &CNTL_PID_CoefStruct1);
-		
-//		PIDout_gui = CNTL_out;
-		
-//		CNTL_out = -1000;
-		//PIDout = (int32_t)(CNTL_out * (float) 3900.0);
-		//PIDout = (int32_t)(Uout_ref_sin * (float) 3900.0);
+//		DAC2_SetData ((IL_sin_theta >> 4) + 2048);
+		DAC2_SetData ((sogi_IL.alpha >> 4) + 2048);
+//		PID_adc_ILd.debug1 = PID_adc_ILd.out;
+//		PID_adc_ILd.debug2 = uind;
 		
 		PIDout	= (out_pwm * PWM_MAX + 16384) >> 15;
 		
@@ -866,21 +831,12 @@ void Timer3_IRQHandler ()
 		
 		if (PIDout >= 0 ) {
 			MDR_TIMER3->CCR1 = PIDout & 0xFFF;
-			MDR_TIMER3->CCR2 = 0;
-			//DAC2_SetData ((PIDout >> 1) & 0xFFF);
+			MDR_TIMER3->CCR2 = 0;			
 		}		
 		else {
 			MDR_TIMER3->CCR1 = 0;
-			MDR_TIMER3->CCR2 = (0-PIDout) & 0xFFF;			
+			MDR_TIMER3->CCR2 =(0-PIDout) & 0xFFF;
 		}
-		
-//		if (PIDout >= 0 ) {
-//			MDR_TIMER3->CCR1 = 0;
-//			MDR_TIMER3->CCR2 = 3900 - PIDout;
-//		} else {
-//			MDR_TIMER3->CCR1 = 3900 - PIDout * (-1);
-//			MDR_TIMER3->CCR2 = 0;			
-//		}
 		
 		MDR_PORTD->RXTX &=~(1<<PD6);
 	}

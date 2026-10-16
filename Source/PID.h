@@ -35,7 +35,9 @@ typedef struct
 	int16_t fdbk;
 	int32_t integral;	
 	int16_t out;
-	int32_t debug;
+	
+	int32_t debug1;
+	int32_t debug2;
 } CNTL_PID_Q15_t;
 
 
