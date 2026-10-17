@@ -98,7 +98,7 @@ int32_t PIDout;
 int32_t kp;
 int32_t ki;
 int32_t kd;
-int64_t temp;
+//int64_t temp;
 float PIDout_gui;
 volatile float Uout_ADC;
 volatile float Uout_ref;
@@ -203,13 +203,13 @@ int main (void)
 	PID_adc_400V.debug1							= 0;
 	PID_adc_400V.debug2							= 0;
 	
-	coef_PID_adc_400V.kp						= 3276;
-	coef_PID_adc_400V.ki						= 1000;
+	coef_PID_adc_400V.kp						= 4276;
+	coef_PID_adc_400V.ki						= 800;
 	coef_PID_adc_400V.integral_max	= 1071513600;//1073741823;
 	coef_PID_adc_400V.integral_min	= -1071513600;//-1073741824;
 	coef_PID_adc_400V.kd						= 0;
-	coef_PID_adc_400V.out_max				= 32767;
-	coef_PID_adc_400V.out_min				= -16000;
+	coef_PID_adc_400V.out_max				= 10000;
+	coef_PID_adc_400V.out_min				= -10000;
 
 
 //******************* PI ILd *****************
@@ -219,8 +219,8 @@ int main (void)
 	PID_adc_ILd.debug1							= 0;
 	PID_adc_ILd.debug2							= 0;
 	
-	coef_PID_adc_ILd.kp							= 20480;//1000;
-	coef_PID_adc_ILd.ki							= 22;//50;
+	coef_PID_adc_ILd.kp							= 15000;//1000;
+	coef_PID_adc_ILd.ki							= 16;//50;
 	coef_PID_adc_ILd.integral_max		= 1071513600;//1073741823;
 	coef_PID_adc_ILd.integral_min		= -1071513600;//-1073741824;
 	coef_PID_adc_ILd.kd							= 0;
@@ -305,6 +305,7 @@ void task_m1 ()
 					//memcpy((float*)&Kdc, &CANmsg.data_u32[1], 4);
 					memcpy(&coef_PID_adc_400V.kp, &CANmsg.data_u32[0], 4);
 					memcpy(&coef_PID_adc_400V.ki, &CANmsg.data_u32[1], 4);
+					PID_adc_400V.integral = 0;
 					
 				}
 				
@@ -742,7 +743,8 @@ void Timer3_IRQHandler ()
 //	int16_t ILd;
 //	int16_t ILq;
 	int16_t out_pwm;
-	int32_t temp;
+	int32_t temp_ILd;
+	int32_t temp_ILq;
 	
 	if (MDR_TIMER3->STATUS & TIMER_STATUS_CNT_ZERO)
 	{
@@ -794,12 +796,12 @@ void Timer3_IRQHandler ()
 
 //		IL_sin_theta = get_sin_1024(pll.phase >> 22);
 //		IL_cos_theta = get_cos_1024(pll.phase >> 22);
-			IL_sin_theta = uin_sin_theta;
-			IL_cos_theta = uin_cos_theta;
+		IL_sin_theta = uin_sin_theta;
+		IL_cos_theta = uin_cos_theta;
 			
 		ParkTransform_Q15(sogi_IL.alpha, sogi_IL.beta, IL_sin_theta, IL_cos_theta, &ILd, &ILq);
 			
-	PID_adc_ILd.ref = -PID_adc_400V.out;
+		PID_adc_ILd.ref = -PID_adc_400V.out;
 //		PID_adc_ILd.ref = PID_adc_400V.ref;
 		PID_adc_ILd.fdbk = ILd;
 		CNTL_PID_Q15 (&PID_adc_ILd, &coef_PID_adc_ILd);
@@ -808,16 +810,23 @@ void Timer3_IRQHandler ()
 		PID_adc_ILq.fdbk = ILq;
 		CNTL_PID_Q15 (&PID_adc_ILq, &coef_PID_adc_ILd); // ! КОЭФФИЦИЕНТЫ КАК Id
 		
-		temp = (((int32_t)uind * 179)>>6) + (int32_t)PID_adc_ILd.out;				//	179/64 = 2.8
-		temp = __ssat (temp,16);
-			
-		reversParkTransform_Q15((int16_t)temp, PID_adc_ILq.out, IL_sin_theta, IL_cos_theta, &out_pwm);
+		temp_ILd = (((int32_t)uind * 5)>>1) + (int32_t)PID_adc_ILd.out;				//	179/64 = 2.8 т.к. база измерения входного напряжения 50 В, выход PI(i) определяет требуемое напряжение моста, а он питается напряжением 20 В
+																																					// то чтобы правильно смаштабировать входное напряжение и добавить к выходу регулятора надо входное напряжение * (50/20 = 2,5)
+		temp_ILd = temp_ILd + ((ILq * 13) >> 4);															// чтобы привести масштаб тока надо: т.к. база моста это 20 В - 32768, база тока 3,3 А - 32768, 2*pi*f*L = 0.857.
+																																					// ток надо разделить на 20/3,3 = 6,06 - этот коэффициент представим как => 1/6,06 = 0,165 => и на него будем умножать. 0,165 => 21 / 128 = 0,1640625;
+		temp_ILd = __ssat (temp_ILd,16);
+		
+		temp_ILq = PID_adc_ILq.out - ((ILd * 13) >> 4) ;
+//		temp_ILq = PID_adc_ILq.out;
+		temp_ILq = __ssat (temp_ILq,16);
+		
+		reversParkTransform_Q15((int16_t)temp_ILd, (int16_t)temp_ILq, IL_sin_theta, IL_cos_theta, &out_pwm);
 			//reversParkTransform_Q15(PID_adc_ILd.out, 0, IL_sin_theta, IL_cos_theta, &out_pwm);
 		pll_avg_error_gui = uind;
 		
 //		DAC2_SetData ((IL_sin_theta >> 4) + 2048);
-		DAC2_SetData ((sogi_IL.alpha >> 4) + 2048);
-//		PID_adc_ILd.debug1 = PID_adc_ILd.out;
+		DAC2_SetData ((ILd >> 4) + 2048);
+		PID_adc_ILd.debug1 = PID_adc_ILd.out;
 //		PID_adc_ILd.debug2 = uind;
 		
 		PIDout	= (out_pwm * PWM_MAX + 16384) >> 15;
